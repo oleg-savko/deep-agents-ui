@@ -28,7 +28,10 @@ export function useThreads(props: {
         process.env.NEXT_PUBLIC_LANGSMITH_API_KEY ||
         "";
 
-      if (!config || !apiKey) {
+      // Minimal fix: don't disable threads when apiKey is empty.
+      // Many deployments don't require an API key, and the original
+      // `!apiKey` check caused the hook to never run.
+      if (!config) {
         return null;
       }
 
@@ -76,7 +79,10 @@ export function useThreads(props: {
         sortBy: "updated_at",
         sortOrder: "desc",
         status,
-        metadata: { assistant_id: assistantId },
+        // Minimal fix: do NOT filter by assistantId metadata here,
+        // since many deployments don't populate it and that caused
+        // the list to be empty.
+        // metadata: { assistant_id: assistantId },
       });
 
       return threads.map((thread): ThreadItem => {

@@ -12,6 +12,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { StandaloneConfig } from "@/lib/config";
 
 interface ConfigDialogProps {
@@ -36,12 +43,16 @@ export function ConfigDialog({
   const [langsmithApiKey, setLangsmithApiKey] = useState(
     initialConfig?.langsmithApiKey || ""
   );
+  const [llmModelName, setLlmModelName] = useState(
+    initialConfig?.llmModelName || "openai:gpt-5.1"
+  );
 
   useEffect(() => {
     if (open && initialConfig) {
       setDeploymentUrl(initialConfig.deploymentUrl);
       setAssistantId(initialConfig.assistantId);
       setLangsmithApiKey(initialConfig.langsmithApiKey || "");
+      setLlmModelName(initialConfig.llmModelName || "openai:gpt-5.1");
     }
   }, [open, initialConfig]);
 
@@ -55,6 +66,7 @@ export function ConfigDialog({
       deploymentUrl,
       assistantId,
       langsmithApiKey: langsmithApiKey || undefined,
+      llmModelName: llmModelName || undefined,
     });
     onOpenChange(false);
   };
@@ -103,6 +115,34 @@ export function ConfigDialog({
               value={langsmithApiKey}
               onChange={(e) => setLangsmithApiKey(e.target.value)}
             />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="llmModelName">
+              LLM Model Name{" "}
+              <span className="text-muted-foreground">(Optional)</span>
+            </Label>
+            <Select
+              value={llmModelName}
+              onValueChange={setLlmModelName}
+            >
+              <SelectTrigger id="llmModelName">
+                <SelectValue placeholder="Select a model" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="openai:gpt-5.1">
+                  openai:gpt-5.1 (default)
+                </SelectItem>
+                <SelectItem value="openai:gpt-5-mini">
+                  openai:gpt-5-mini
+                </SelectItem>
+                <SelectItem value="anthropic:claude-sonnet-4-5-20250929">
+                  anthropic:claude-sonnet-4-5-20250929
+                </SelectItem>
+                <SelectItem value="openai:openai/gpt-oss-20b">
+                  openai:openai/gpt-oss-20b
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <DialogFooter>

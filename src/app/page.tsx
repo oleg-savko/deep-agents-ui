@@ -88,7 +88,13 @@ function HomePageContent() {
     graph_id: config.assistantId,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    config: {},
+    config: config.llmModelName
+      ? {
+          configurable: {
+            LLM_MODEL: config.llmModelName,
+          },
+        }
+      : {},
     metadata: {},
     version: 1,
     name: "Default Assistant",

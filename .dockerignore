@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.github
+*.log
+.env*.local
+README.md
+.prettierignore
+.gitignore
+yarn-error.log
+MIGRATION_ANALYSIS.md

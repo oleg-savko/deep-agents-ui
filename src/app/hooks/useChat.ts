@@ -61,7 +61,10 @@ export function useChat({
           optimisticValues: (prev) => ({
             messages: [...(prev.messages ?? []), newMessage],
           }),
-          config: { ...(activeAssistant?.config ?? {}), recursion_limit: 100 },
+          config: {
+            ...(activeAssistant?.config ?? {}),
+            recursion_limit: 100,
+          },
         }
       );
       // Update thread list immediately when sending a message
