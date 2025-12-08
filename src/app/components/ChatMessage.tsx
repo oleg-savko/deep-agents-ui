@@ -13,6 +13,7 @@ import {
   getInterruptTitle,
 } from "@/app/utils/utils";
 import { cn } from "@/lib/utils";
+import { FeedbackButtons } from "@/app/components/FeedbackButtons";
 
 interface ChatMessageProps {
   message: Message;
@@ -131,6 +132,11 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                   <RotateCcw className="h-3 w-3 text-gray-600" />
                 </button>
               )}
+            </div>
+          )}
+          {isAIMessage && hasContent && !isLoading && message.id && (
+            <div className="mt-2 flex items-center">
+              <FeedbackButtons traceId={message.id} />
             </div>
           )}
           {hasToolCalls && (
