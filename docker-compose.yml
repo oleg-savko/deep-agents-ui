@@ -5,14 +5,19 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_DEPLOYMENT_URL=${NEXT_PUBLIC_DEPLOYMENT_URL:-https://deep-agent-ui.moneyman.ru}
+        - NEXT_PUBLIC_AGENT_ID=${NEXT_PUBLIC_AGENT_ID:-research}
+        - NEXT_PUBLIC_LANGSMITH_API_KEY=${NEXT_PUBLIC_LANGSMITH_API_KEY:-}
+        - NEXT_PUBLIC_LANGFUSE_PUBLIC_KEY=${NEXT_PUBLIC_LANGFUSE_PUBLIC_KEY:-}
+        - NEXT_PUBLIC_LANGFUSE_HOST=${NEXT_PUBLIC_LANGFUSE_HOST:-https://cloud.langfuse.com}
     container_name: deep-agents-ui
     ports:
       - "3010:3000"
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_DEPLOYMENT_URL=${NEXT_PUBLIC_DEPLOYMENT_URL:-https://deep-agent-ui.moneyman.ru}
-      - NEXT_PUBLIC_AGENT_ID=${NEXT_PUBLIC_AGENT_ID:-research}
-      - NEXT_PUBLIC_LANGSMITH_API_KEY=${NEXT_PUBLIC_LANGSMITH_API_KEY:-}
+    env_file:
+      - .env
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"

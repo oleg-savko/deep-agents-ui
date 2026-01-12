@@ -92,6 +92,7 @@ function HomePageContent() {
       ? {
           configurable: {
             LLM_MODEL: config.llmModelName,
+            PROJECT: config.project,
           },
         }
       : {},

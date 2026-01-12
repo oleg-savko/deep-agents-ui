@@ -46,6 +46,9 @@ export function ConfigDialog({
   const [llmModelName, setLlmModelName] = useState(
     initialConfig?.llmModelName || "openai:gpt-5.1"
   );
+  const [project, setProject] = useState(
+    initialConfig?.project || "MMRU"
+  );
 
   useEffect(() => {
     if (open && initialConfig) {
@@ -53,6 +56,7 @@ export function ConfigDialog({
       setAssistantId(initialConfig.assistantId);
       setLangsmithApiKey(initialConfig.langsmithApiKey || "");
       setLlmModelName(initialConfig.llmModelName || "openai:gpt-5.1");
+      setProject(initialConfig.project || "MMRU");
     }
   }, [open, initialConfig]);
 
@@ -67,6 +71,7 @@ export function ConfigDialog({
       assistantId,
       langsmithApiKey: langsmithApiKey || undefined,
       llmModelName: llmModelName || undefined,
+      project: project || undefined,
     });
     onOpenChange(false);
   };
@@ -132,6 +137,9 @@ export function ConfigDialog({
                 <SelectItem value="openai:gpt-5.1">
                   openai:gpt-5.1 (default)
                 </SelectItem>
+                <SelectItem value="openai:gpt-5.2">
+                  openai:gpt-5.2
+                </SelectItem>
                 <SelectItem value="openai:gpt-5-mini">
                   openai:gpt-5-mini
                 </SelectItem>
@@ -140,6 +148,28 @@ export function ConfigDialog({
                 </SelectItem>
                 <SelectItem value="openai:openai/gpt-oss-20b">
                   openai:openai/gpt-oss-20b
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="project">
+              Project{" "}
+              <span className="text-muted-foreground">(Optional)</span>
+            </Label>
+            <Select
+              value={project}
+              onValueChange={setProject}
+            >
+              <SelectTrigger id="project">
+                <SelectValue placeholder="Select a project" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="MMRU">
+                  MMRU
+                </SelectItem>
+                <SelectItem value="IDC">
+                  IDC
                 </SelectItem>
               </SelectContent>
             </Select>
