@@ -21,6 +21,16 @@ import {
 } from "@/components/ui/select";
 import { StandaloneConfig } from "@/lib/config";
 
+interface Project {
+  value: string;
+  label: string;
+}
+
+interface LLMModel {
+  value: string;
+  label: string;
+}
+
 interface ConfigDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -47,8 +57,10 @@ export function ConfigDialog({
     initialConfig?.llmModelName || "openai:gpt-5.1"
   );
   const [project, setProject] = useState(
-    initialConfig?.project || "MMRU"
+    initialConfig?.project || ""
   );
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [llmModels, setLlmModels] = useState<LLMModel[]>([]);
 
   useEffect(() => {
     if (open && initialConfig) {
@@ -56,9 +68,29 @@ export function ConfigDialog({
       setAssistantId(initialConfig.assistantId);
       setLangsmithApiKey(initialConfig.langsmithApiKey || "");
       setLlmModelName(initialConfig.llmModelName || "openai:gpt-5.1");
-      setProject(initialConfig.project || "MMRU");
+      setProject(initialConfig.project || "");
     }
   }, [open, initialConfig]);
+
+  // Load projects and LLM models from config
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const response = await fetch("/api/config");
+        if (response.ok) {
+          const data = await response.json();
+          setProjects(data.projects || []);
+          setLlmModels(data.models || []);
+        }
+      } catch (error) {
+        console.error("Failed to load config:", error);
+      }
+    };
+
+    if (open) {
+      loadConfig();
+    }
+  }, [open]);
 
   const handleSave = () => {
     if (!deploymentUrl || !assistantId) {
@@ -134,21 +166,11 @@ export function ConfigDialog({
                 <SelectValue placeholder="Select a model" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="openai:gpt-5.1">
-                  openai:gpt-5.1 (default)
-                </SelectItem>
-                <SelectItem value="openai:gpt-5.2">
-                  openai:gpt-5.2
-                </SelectItem>
-                <SelectItem value="openai:gpt-5-mini">
-                  openai:gpt-5-mini
-                </SelectItem>
-                <SelectItem value="anthropic:claude-sonnet-4-5-20250929">
-                  anthropic:claude-sonnet-4-5-20250929
-                </SelectItem>
-                <SelectItem value="openai:openai/gpt-oss-20b">
-                  openai:openai/gpt-oss-20b
-                </SelectItem>
+                {llmModels.map((model) => (
+                  <SelectItem key={model.value} value={model.value}>
+                    {model.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -165,12 +187,11 @@ export function ConfigDialog({
                 <SelectValue placeholder="Select a project" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="MMRU">
-                  MMRU
-                </SelectItem>
-                <SelectItem value="IDC">
-                  IDC
-                </SelectItem>
+                {projects.map((proj) => (
+                  <SelectItem key={proj.value} value={proj.value}>
+                    {proj.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
