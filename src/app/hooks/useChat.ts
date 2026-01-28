@@ -63,7 +63,7 @@ export function useChat({
           }),
           config: {
             ...(activeAssistant?.config ?? {}),
-            recursion_limit: 100,
+            recursion_limit: 1000,
           },
         }
       );
@@ -116,7 +116,7 @@ export function useChat({
       stream.submit(undefined, {
         config: {
           ...(activeAssistant?.config || {}),
-          recursion_limit: 100,
+          recursion_limit: 1000,
         },
         ...(hasTaskToolCall
           ? { interruptAfter: ["tools"] }
