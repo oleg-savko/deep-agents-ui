@@ -29,7 +29,7 @@ export const ToolCallBox = React.memo<ToolCallBoxProps>(
       {}
     );
 
-    const { name, args, result, status } = useMemo(() => {
+    const { name, args, result, resultImages, status } = useMemo(() => {
       const toolName = toolCall.name || "Unknown Tool";
       const toolArgs = toolCall.args || "{}";
       let parsedArgs = {};
@@ -40,6 +40,7 @@ export const ToolCallBox = React.memo<ToolCallBoxProps>(
         parsedArgs = { raw: toolArgs };
       }
       const toolResult = toolCall.result || null;
+      const images = toolCall.resultImages ?? [];
       const toolStatus = isInterrupted
         ? "interrupted"
         : toolCall.status || "completed";
@@ -48,6 +49,7 @@ export const ToolCallBox = React.memo<ToolCallBoxProps>(
         name: toolName,
         args: parsedArgs,
         result: toolResult,
+        resultImages: images,
         status: toolStatus,
       };
     }, [toolCall, isInterrupted]);
@@ -98,7 +100,10 @@ export const ToolCallBox = React.memo<ToolCallBoxProps>(
       }));
     }, []);
 
-    const hasContent = result || Object.keys(args).length > 0;
+    const hasContent =
+      Boolean(result) ||
+      resultImages.length > 0 ||
+      Object.keys(args).length > 0;
 
     // Auto-expand when status is interrupted
     useEffect(() => {
@@ -201,16 +206,37 @@ export const ToolCallBox = React.memo<ToolCallBoxProps>(
                     </div>
                   </div>
                 )}
-                {result && (
+                {(result || resultImages.length > 0) && (
                   <div className="mt-4">
                     <h4 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       Result
                     </h4>
-                    <pre className="m-0 overflow-x-auto whitespace-pre-wrap break-all rounded-sm border border-border bg-muted/40 p-2 font-mono text-xs leading-7 text-foreground">
-                      {typeof result === "string"
-                        ? result
-                        : JSON.stringify(result, null, 2)}
-                    </pre>
+                    {resultImages.length > 0 && (
+                      <div className="mb-2 flex flex-wrap gap-2">
+                        {resultImages.map((img, idx) => (
+                          <a
+                            key={idx}
+                            href={img.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block"
+                          >
+                            <img
+                              src={img.url}
+                              alt={`Tool result image ${idx + 1}`}
+                              className="max-h-64 max-w-full rounded-md border border-border object-contain"
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                    {result ? (
+                      <pre className="m-0 overflow-x-auto whitespace-pre-wrap break-all rounded-sm border border-border bg-muted/40 p-2 font-mono text-xs leading-7 text-foreground">
+                        {typeof result === "string"
+                          ? result
+                          : JSON.stringify(result, null, 2)}
+                      </pre>
+                    ) : null}
                   </div>
                 )}
               </>

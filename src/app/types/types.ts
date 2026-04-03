@@ -1,8 +1,15 @@
+/** Resolved image for multimodal tool results (e.g. read_file on PNG). */
+export interface ToolResultImage {
+  url: string;
+}
+
 export interface ToolCall {
   id: string;
   name: string;
   args: Record<string, unknown>;
   result?: string;
+  /** Images from tool message content (LangChain image / image_url blocks). */
+  resultImages?: ToolResultImage[];
   status: "pending" | "completed" | "error" | "interrupted";
 }
 

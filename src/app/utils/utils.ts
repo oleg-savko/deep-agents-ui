@@ -3,8 +3,28 @@ import { HumanInterrupt } from "@/app/types/inbox";
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
+/** Prefix for inline file blocks in multimodal message content (matches useChat attachment encoding). */
+const FILE_ATTACHMENT_PREFIX = "--- File: ";
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+function isStringExtractTextPart(c: unknown): boolean {
+  if (typeof c === "string") return true;
+  if (
+    typeof c !== "object" ||
+    c === null ||
+    !("type" in c) ||
+    (c as { type: string }).type !== "text"
+  ) {
+    return false;
+  }
+  const text = (c as { text?: string }).text;
+  if (typeof text === "string" && text.startsWith(FILE_ATTACHMENT_PREFIX)) {
+    return false;
+  }
+  return true;
 }
 
 export function extractStringFromMessageContent(message: Message): string {
@@ -12,14 +32,7 @@ export function extractStringFromMessageContent(message: Message): string {
     ? message.content
     : Array.isArray(message.content)
     ? message.content
-        .filter(
-          (c: unknown) =>
-            (typeof c === "object" &&
-              c !== null &&
-              "type" in c &&
-              (c as { type: string }).type === "text") ||
-            typeof c === "string"
-        )
+        .filter(isStringExtractTextPart)
         .map((c: unknown) =>
           typeof c === "string"
             ? c
@@ -156,8 +169,6 @@ export function formatConversationForLLM(messages: Message[]): string {
   const formattedMessages = messages.map(formatMessageForLLM);
   return formattedMessages.join("\n\n---\n\n");
 }
-
-const FILE_ATTACHMENT_PREFIX = "--- File: ";
 
 export function isImageMimeType(mimeType: string): boolean {
   return mimeType.startsWith("image/");
@@ -308,20 +319,46 @@ export interface FileAttachmentBlock {
 }
 
 /**
- * Extract image_url blocks from a message's content array.
+ * Extract displayable image URLs from a message's content array.
+ *
+ * Supports OpenAI-style `image_url` blocks and LangChain v1 `image` blocks
+ * (url, or base64 + mime_type as used by deepagents `read_file` on images).
  */
 export function extractImagesFromMessageContent(message: Message): ImageBlock[] {
   if (!Array.isArray(message.content)) return [];
-  return message.content
-    .filter(
-      (c: any) =>
-        typeof c === "object" && c !== null && c.type === "image_url"
-    )
-    .map((c: any) => {
+  const out: ImageBlock[] = [];
+  for (const c of message.content) {
+    if (typeof c !== "object" || c === null) continue;
+    const block = c as Record<string, unknown>;
+    const t = block.type;
+    if (t === "image_url") {
+      const raw = block.image_url;
       const url =
-        typeof c.image_url === "string" ? c.image_url : c.image_url?.url ?? "";
-      return { url };
-    });
+        typeof raw === "string"
+          ? raw
+          : typeof raw === "object" &&
+              raw !== null &&
+              "url" in raw &&
+              typeof (raw as { url?: string }).url === "string"
+            ? (raw as { url: string }).url
+            : "";
+      if (url) out.push({ url });
+    } else if (t === "image") {
+      if (typeof block.url === "string" && block.url) {
+        out.push({ url: block.url });
+      } else if (
+        typeof block.base64 === "string" &&
+        block.base64 &&
+        typeof block.mime_type === "string" &&
+        block.mime_type
+      ) {
+        out.push({
+          url: `data:${block.mime_type};base64,${block.base64}`,
+        });
+      }
+    }
+  }
+  return out;
 }
 
 /**

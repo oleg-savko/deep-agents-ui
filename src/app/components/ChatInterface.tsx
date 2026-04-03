@@ -27,6 +27,7 @@ import { ChatMessage } from "@/app/components/ChatMessage";
 import type { Attachment, TodoItem, ToolCall } from "@/app/types/types";
 import { Assistant, Message } from "@langchain/langgraph-sdk";
 import {
+  extractImagesFromMessageContent,
   extractStringFromMessageContent,
   isDocumentFile,
   isImageFile,
@@ -502,6 +503,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
               ...data.toolCalls[toolCallIndex],
               status: "completed" as const,
               result: extractStringFromMessageContent(message),
+              resultImages: extractImagesFromMessageContent(message),
             };
             break;
           }
