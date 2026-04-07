@@ -362,6 +362,25 @@ export function extractImagesFromMessageContent(message: Message): ImageBlock[] 
 }
 
 /**
+ * Drop markdown `![](url)` when the URL cannot load in the browser (e.g. `/sandbox/...`).
+ * Keeps `data:` and `http(s)` URLs. Pair with showing tool `resultImages` as attachments
+ * (same data URLs as read_file in ToolCallBox).
+ */
+export function stripUndisplayableMarkdownImages(text: string): string {
+  return text.replace(
+    /!\[([^\]]*)\]\(([^)]+)\)/g,
+    (_full, alt: string, url: string) => {
+      const u = url.trim();
+      if (u.startsWith("data:") || /^https?:\/\//i.test(u)) {
+        return _full;
+      }
+      const a = alt.trim();
+      return a ? a : "";
+    }
+  );
+}
+
+/**
  * Extract file attachment text blocks from a message's content array.
  * These are blocks whose text starts with "--- File: ".
  */

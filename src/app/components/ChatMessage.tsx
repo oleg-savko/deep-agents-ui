@@ -14,6 +14,7 @@ import {
   extractStringFromMessageContent,
   extractUserTextFromMessageContent,
   getInterruptTitle,
+  stripUndisplayableMarkdownImages,
 } from "@/app/utils/utils";
 import { cn } from "@/lib/utils";
 import { FeedbackButtons } from "@/app/components/FeedbackButtons";
@@ -72,11 +73,30 @@ export const ChatMessage = React.memo<ChatMessageProps>(
       () => extractImagesFromMessageContent(message),
       [message]
     );
+    const toolResultImageUrls = useMemo(
+      () =>
+        toolCalls.flatMap((tc) =>
+          (tc.resultImages ?? []).map((img) => img.url)
+        ),
+      [toolCalls]
+    );
+    const displayImageUrls = useMemo(
+      () => [...imageBlocks.map((b) => b.url), ...toolResultImageUrls],
+      [imageBlocks, toolResultImageUrls]
+    );
+    const aiMarkdownForDisplay = useMemo(
+      () =>
+        isAIMessage
+          ? stripUndisplayableMarkdownImages(messageContent)
+          : messageContent,
+      [isAIMessage, messageContent]
+    );
     const fileAttachments = useMemo(
       () => extractFileAttachmentsFromMessageContent(message),
       [message]
     );
-    const hasAttachments = imageBlocks.length > 0 || fileAttachments.length > 0;
+    const hasAttachments =
+      displayImageUrls.length > 0 || fileAttachments.length > 0;
     const subAgents = useMemo(() => {
       return toolCalls
         .filter((toolCall: ToolCall) => {
@@ -145,16 +165,16 @@ export const ChatMessage = React.memo<ChatMessageProps>(
               >
                 {hasAttachments && (
                   <div className="mb-2 flex flex-wrap gap-2">
-                    {imageBlocks.map((img, idx) => (
+                    {displayImageUrls.map((url, idx) => (
                       <a
-                        key={idx}
-                        href={img.url}
+                        key={`${url.slice(0, 48)}-${idx}`}
+                        href={url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="block"
                       >
                         <img
-                          src={img.url}
+                          src={url}
                           alt={`Attachment ${idx + 1}`}
                           className="max-h-48 max-w-full rounded-md border border-border object-contain"
                         />
@@ -183,7 +203,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                     </p>
                   ) : null
                 ) : hasContent ? (
-                  <MarkdownContent content={messageContent} />
+                  <MarkdownContent content={aiMarkdownForDisplay} />
                 ) : null}
               </div>
               {debugMode && isAIMessage && !(isLastMessage && isLoading) && (
