@@ -197,6 +197,7 @@ export function useChat({
         optimisticValues: (prev) => ({
           messages: [...(prev.messages ?? []), newMessage],
         }),
+        streamSubgraphs: true,
         config: {
           ...(activeAssistant?.config ?? {}),
           recursion_limit: 1000,
@@ -221,6 +222,7 @@ export function useChat({
           ...(optimisticMessages
             ? { optimisticValues: { messages: optimisticMessages } }
             : {}),
+          streamSubgraphs: true,
           config: activeAssistant?.config,
           checkpoint: checkpoint,
           ...(isRerunningSubagent
@@ -230,7 +232,11 @@ export function useChat({
       } else {
         stream.submit(
           { messages },
-          { config: activeAssistant?.config, interruptBefore: ["tools"] }
+          {
+            streamSubgraphs: true,
+            config: activeAssistant?.config,
+            interruptBefore: ["tools"],
+          }
         );
       }
     },
@@ -251,6 +257,7 @@ export function useChat({
     (hasTaskToolCall?: boolean) => {
       runStartedAtRef.current = performance.now();
       stream.submit(undefined, {
+        streamSubgraphs: true,
         config: {
           ...(activeAssistant?.config || {}),
           recursion_limit: 1000,
@@ -268,7 +275,7 @@ export function useChat({
   const sendHumanResponse = useCallback(
     (response: HumanResponse[]) => {
       runStartedAtRef.current = performance.now();
-      stream.submit(null, { command: { resume: response } });
+      stream.submit(null, { command: { resume: response }, streamSubgraphs: true });
       // Update thread list when resuming from interrupt
       onHistoryRevalidate?.();
     },
@@ -276,7 +283,10 @@ export function useChat({
   );
 
   const markCurrentThreadAsResolved = useCallback(() => {
-    stream.submit(null, { command: { goto: "__end__", update: null } });
+    stream.submit(null, {
+      command: { goto: "__end__", update: null },
+      streamSubgraphs: true,
+    });
     // Update thread list when marking thread as resolved
     onHistoryRevalidate?.();
   }, [stream, onHistoryRevalidate]);

@@ -24,7 +24,7 @@ import {
   File as FileIconLucide,
 } from "lucide-react";
 import { ChatMessage } from "@/app/components/ChatMessage";
-import type { Attachment, TodoItem, ToolCall } from "@/app/types/types";
+import type { Attachment, SubAgentRun, TodoItem, ToolCall } from "@/app/types/types";
 import { Assistant, Message } from "@langchain/langgraph-sdk";
 import {
   extractImagesFromMessageContent,
@@ -333,6 +333,13 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       responseDurationByAiMessageId,
     } = useChatContext();
 
+    const subAgentRunsCacheRef = useRef<Record<string, SubAgentRun>>({});
+
+    useEffect(() => {
+      // Reset cached subagent timelines when switching threads.
+      subAgentRunsCacheRef.current = {};
+    }, [threadId, agentId]);
+
     const submitDisabled = isLoading || !assistant;
     const hasAttachments = attachments.length > 0;
 
@@ -419,74 +426,175 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
 
     // Reserved: additional UI state
     // TODO: can we make this part of the hook?
-    const processedMessages = useMemo(() => {
+    const { processedMessages, subAgentRunsByTaskId } = useMemo(() => {
       /*
      1. Loop through all messages
      2. For each AI message, add the AI message, and any tool calls to the messageMap
      3. For each tool message, find the corresponding tool call in the messageMap and update the status and output
     */
+      const extractToolCallsFromAiMessage = (
+        message: Message & { type: "ai" }
+      ): Array<{
+        id?: string;
+        function?: { name?: string; arguments?: unknown };
+        name?: string;
+        type?: string;
+        args?: unknown;
+        input?: unknown;
+      }> => {
+        const toolCallsInMessage: Array<{
+          id?: string;
+          function?: { name?: string; arguments?: unknown };
+          name?: string;
+          type?: string;
+          args?: unknown;
+          input?: unknown;
+        }> = [];
+        const msgAny = message as any;
+        if (
+          msgAny.additional_kwargs?.tool_calls &&
+          Array.isArray(msgAny.additional_kwargs.tool_calls)
+        ) {
+          toolCallsInMessage.push(...msgAny.additional_kwargs.tool_calls);
+        } else if (msgAny.tool_calls && Array.isArray(msgAny.tool_calls)) {
+          toolCallsInMessage.push(
+            ...msgAny.tool_calls.filter(
+              (toolCall: { name?: string }) => toolCall.name !== ""
+            )
+          );
+        } else if (Array.isArray(msgAny.content)) {
+          const toolUseBlocks = msgAny.content.filter(
+            (block: { type?: string }) => block.type === "tool_use"
+          );
+          toolCallsInMessage.push(...toolUseBlocks);
+        }
+        return toolCallsInMessage;
+      };
+
+      const toToolCall = (
+        raw: {
+        id?: string;
+        function?: { name?: string; arguments?: unknown };
+        name?: string;
+        type?: string;
+        args?: unknown;
+        input?: unknown;
+        },
+        order?: number
+      ): ToolCall => {
+        const name =
+          raw.function?.name || raw.name || raw.type || "unknown";
+        const rawArgs =
+          raw.function?.arguments || raw.args || raw.input || {};
+        let args: Record<string, unknown> = {};
+        try {
+          args =
+            typeof rawArgs === "string"
+              ? (JSON.parse(rawArgs) as Record<string, unknown>)
+              : rawArgs && typeof rawArgs === "object"
+                ? (rawArgs as Record<string, unknown>)
+                : {};
+        } catch {
+          args = { raw: rawArgs };
+        }
+        return {
+          id: raw.id || `tool-${Math.random()}`,
+          name,
+          args,
+          status: interrupt ? "interrupted" : "pending",
+          order,
+        };
+      };
+
       const messageMap = new Map<
         string,
         { message: Message; toolCalls: ToolCall[] }
       >();
-      messages.forEach((message: Message) => {
-        if (message.type === "ai") {
-          const toolCallsInMessage: Array<{
-            id?: string;
-            function?: { name?: string; arguments?: unknown };
-            name?: string;
-            type?: string;
-            args?: unknown;
-            input?: unknown;
-          }> = [];
-          if (
-            message.additional_kwargs?.tool_calls &&
-            Array.isArray(message.additional_kwargs.tool_calls)
-          ) {
-            toolCallsInMessage.push(...message.additional_kwargs.tool_calls);
-          } else if (message.tool_calls && Array.isArray(message.tool_calls)) {
-            toolCallsInMessage.push(
-              ...message.tool_calls.filter(
-                (toolCall: { name?: string }) => toolCall.name !== ""
-              )
-            );
-          } else if (Array.isArray(message.content)) {
-            const toolUseBlocks = message.content.filter(
-              (block: { type?: string }) => block.type === "tool_use"
-            );
-            toolCallsInMessage.push(...toolUseBlocks);
+
+      // Derive subagent (task tool) “run windows” and internal progress/tool calls.
+      // This is best-effort: if the backend does not stream internal subagent messages,
+      // the run will simply have empty progress/toolCalls (and the UI falls back to input/output).
+      const subAgentRunsByTaskId = new Map<string, SubAgentRun>();
+      const activeTaskStack: string[] = [];
+      const activeTaskBySubAgentType = new Map<string, string>();
+
+      const inferActiveTaskIdForMessage = (message: Message): string | null => {
+        if (activeTaskStack.length > 0) {
+          return activeTaskStack[activeTaskStack.length - 1] ?? null;
+        }
+        try {
+          const meta = getMessagesMetadata(message) as any;
+          const activeAssistantName =
+            meta?.activeAssistant?.name ??
+            meta?.activeAssistant?.assistant_id ??
+            meta?.active_assistant?.name;
+          if (typeof activeAssistantName === "string" && activeAssistantName) {
+            return activeTaskBySubAgentType.get(activeAssistantName) ?? null;
           }
-          const toolCallsWithStatus = toolCallsInMessage.map(
-            (toolCall: {
-              id?: string;
-              function?: { name?: string; arguments?: unknown };
-              name?: string;
-              type?: string;
-              args?: unknown;
-              input?: unknown;
-            }) => {
-              const name =
-                toolCall.function?.name ||
-                toolCall.name ||
-                toolCall.type ||
-                "unknown";
-              const args =
-                toolCall.function?.arguments ||
-                toolCall.args ||
-                toolCall.input ||
-                {};
-              return {
-                id: toolCall.id || `tool-${Math.random()}`,
-                name,
-                args,
-                status: interrupt ? "interrupted" : ("pending" as const),
-              } as ToolCall;
-            }
+        } catch {
+          // ignore
+        }
+        return null;
+      };
+
+      messages.forEach((message: Message, messageIndex: number) => {
+        if (message.type === "ai") {
+          const toolCallsInMessage = extractToolCallsFromAiMessage(message);
+          const toolCallsWithStatus = toolCallsInMessage.map((tc) =>
+            toToolCall(tc, messageIndex)
           );
           messageMap.set(message.id!, {
             message,
             toolCalls: toolCallsWithStatus,
           });
+
+          // If we’re currently inside a task run, collect AI progress text and nested tool calls.
+          const inferredTaskId = inferActiveTaskIdForMessage(message);
+          if (inferredTaskId && message.id) {
+            const currentTaskId = inferredTaskId;
+            const run = subAgentRunsByTaskId.get(currentTaskId);
+            if (run) {
+              const text = extractStringFromMessageContent(message).trim();
+              if (text) {
+                run.progress.push({
+                  messageId: message.id,
+                  order: messageIndex,
+                  text,
+                });
+              }
+              for (const tc of toolCallsWithStatus) {
+                // Don’t treat nested `task` calls as regular tool calls (they have their own run).
+                if (tc.name === "task") continue;
+                if (run.toolCalls.some((x) => x.id === tc.id)) continue;
+                run.toolCalls.push(tc);
+              }
+            }
+          }
+
+          // Detect new task runs (subagents).
+          for (const tc of toolCallsWithStatus) {
+            if (tc.name !== "task") continue;
+            // Each task tool call id is the stable identifier to match the tool result message.
+            const taskId = tc.id;
+            if (!taskId) continue;
+            if (!subAgentRunsByTaskId.has(taskId)) {
+              const subAgentType =
+                typeof tc.args?.["subagent_type"] === "string"
+                  ? (tc.args["subagent_type"] as string)
+                  : undefined;
+              subAgentRunsByTaskId.set(taskId, {
+                taskToolCallId: taskId,
+                subAgentType,
+                status: tc.status,
+                progress: [],
+                toolCalls: [],
+              });
+              activeTaskStack.push(taskId);
+              if (subAgentType) {
+                activeTaskBySubAgentType.set(subAgentType, taskId);
+              }
+            }
+          }
         } else if (message.type === "tool") {
           const toolCallId = message.tool_call_id;
           if (!toolCallId) {
@@ -507,6 +615,44 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
             };
             break;
           }
+
+          // If this tool result closes a task, mark it completed and pop from stack.
+          const taskRun = subAgentRunsByTaskId.get(toolCallId);
+          if (taskRun) {
+            taskRun.status = interrupt ? "interrupted" : "completed";
+            // Pop only if it’s on stack; tolerate out-of-order/interleaving.
+            const idx = activeTaskStack.lastIndexOf(toolCallId);
+            if (idx !== -1) {
+              activeTaskStack.splice(idx, 1);
+            }
+            if (taskRun.subAgentType) {
+              const current = activeTaskBySubAgentType.get(taskRun.subAgentType);
+              if (current === toolCallId) {
+                activeTaskBySubAgentType.delete(taskRun.subAgentType);
+              }
+            }
+            return;
+          }
+
+          // Otherwise, it may be a nested tool call result inside the current task run.
+          const inferredTaskId = inferActiveTaskIdForMessage(message);
+          if (inferredTaskId) {
+            const currentTaskId = inferredTaskId;
+            const run = subAgentRunsByTaskId.get(currentTaskId);
+            if (run) {
+              const nestedIdx = run.toolCalls.findIndex((tc) => tc.id === toolCallId);
+              const toolResultText = extractStringFromMessageContent(message);
+              const toolResultImages = extractImagesFromMessageContent(message);
+              if (nestedIdx !== -1) {
+                run.toolCalls[nestedIdx] = {
+                  ...run.toolCalls[nestedIdx],
+                  status: "completed",
+                  result: toolResultText,
+                  resultImages: toolResultImages,
+                };
+              }
+            }
+          }
         } else if (message.type === "human") {
           messageMap.set(message.id!, {
             message,
@@ -515,7 +661,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
         }
       });
       const processedArray = Array.from(messageMap.values());
-      return processedArray.map((data, index) => {
+      const processedMessages = processedArray.map((data, index) => {
         const prevMessage =
           index > 0 ? processedArray[index - 1].message : null;
         return {
@@ -523,7 +669,34 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           showAvatar: data.message.type !== prevMessage?.type,
         };
       });
-    }, [messages, interrupt]);
+      const computedRuns = Object.fromEntries(subAgentRunsByTaskId.entries());
+
+      // Merge with cached runs so stream-only subgraph events don’t disappear
+      // once the run finishes and the persisted message history is reloaded.
+      const merged: Record<string, SubAgentRun> = {
+        ...subAgentRunsCacheRef.current,
+        ...computedRuns,
+      };
+      for (const [taskId, run] of Object.entries(computedRuns)) {
+        const prev = subAgentRunsCacheRef.current[taskId];
+        if (!prev) continue;
+
+        // Preserve previously seen timeline items if the newly computed run is empty.
+        if (run.progress.length === 0 && prev.progress.length > 0) {
+          merged[taskId] = { ...merged[taskId], progress: prev.progress };
+        }
+        if (run.toolCalls.length === 0 && prev.toolCalls.length > 0) {
+          merged[taskId] = { ...merged[taskId], toolCalls: prev.toolCalls };
+        }
+      }
+
+      subAgentRunsCacheRef.current = merged;
+
+      return {
+        processedMessages,
+        subAgentRunsByTaskId: merged,
+      };
+    }, [messages, interrupt, getMessagesMetadata]);
 
     const toggle = !hideInternalToggle && (
       <div className="flex w-full justify-center">
@@ -642,21 +815,19 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
             ) : (
               <>
                 {processedMessages.map((data, index) => {
-                  const messageUi = ui?.filter(
-                    (u: any) => u.metadata?.message_id === data.message.id
-                  );
                   return (
                     <ChatMessage
                       key={data.message.id}
                       message={data.message}
                       toolCalls={data.toolCalls}
+                      subAgentRunsByTaskId={subAgentRunsByTaskId}
                       onRestartFromAIMessage={handleRestartFromAIMessage}
                       onRestartFromSubTask={handleRestartFromSubTask}
                       debugMode={debugMode}
                       isLoading={isLoading}
                       isLastMessage={index === processedMessages.length - 1}
                       interrupt={interrupt}
-                      ui={messageUi}
+                      ui={ui}
                       stream={stream}
                       responseDurationMs={
                         data.message.type === "ai" && data.message.id

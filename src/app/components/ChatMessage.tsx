@@ -5,7 +5,7 @@ import { RotateCcw, FileIcon } from "lucide-react";
 import { SubAgentIndicator } from "@/app/components/SubAgentIndicator";
 import { ToolCallBox } from "@/app/components/ToolCallBox";
 import { MarkdownContent } from "@/app/components/MarkdownContent";
-import type { SubAgent, ToolCall } from "@/app/types/types";
+import type { SubAgent, SubAgentRun, SubAgentStatus, ToolCall } from "@/app/types/types";
 import { Interrupt, Message } from "@langchain/langgraph-sdk";
 import {
   extractSubAgentContent,
@@ -35,6 +35,7 @@ function formatAgentResponseDuration(ms: number): string {
 interface ChatMessageProps {
   message: Message;
   toolCalls: ToolCall[];
+  subAgentRunsByTaskId?: Record<string, SubAgentRun>;
   onRestartFromAIMessage: (message: Message) => void;
   onRestartFromSubTask: (toolCallId: string) => void;
   debugMode?: boolean;
@@ -51,6 +52,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(
   ({
     message,
     toolCalls,
+    subAgentRunsByTaskId,
     onRestartFromAIMessage,
     onRestartFromSubTask,
     debugMode,
@@ -97,7 +99,28 @@ export const ChatMessage = React.memo<ChatMessageProps>(
     );
     const hasAttachments =
       displayImageUrls.length > 0 || fileAttachments.length > 0;
+
+    const nestedToolCallIds = useMemo(() => {
+      const set = new Set<string>();
+      if (!subAgentRunsByTaskId) return set;
+      for (const run of Object.values(subAgentRunsByTaskId)) {
+        for (const tc of run.toolCalls) {
+          set.add(tc.id);
+        }
+      }
+      return set;
+    }, [subAgentRunsByTaskId]);
+
     const subAgents = useMemo(() => {
+      const toSubAgentStatus = (
+        s: ToolCall["status"]
+      ): SubAgentStatus => {
+        if (s === "completed") return "completed";
+        if (s === "error") return "error";
+        if (s === "interrupted") return "interrupted";
+        // A pending task tool call typically means “running”.
+        return "active";
+      };
       return toolCalls
         .filter((toolCall: ToolCall) => {
           return (
@@ -108,14 +131,15 @@ export const ChatMessage = React.memo<ChatMessageProps>(
           );
         })
         .map((toolCall: ToolCall) => {
-          return {
+          const subAgent: SubAgent = {
             id: toolCall.id,
             name: toolCall.name,
             subAgentName: String(toolCall.args["subagent_type"] || ""),
             input: toolCall.args,
             output: toolCall.result ? { result: toolCall.result } : undefined,
-            status: toolCall.status,
-          } as SubAgent;
+            status: toSubAgentStatus(toolCall.status),
+          };
+          return subAgent;
         });
     }, [toolCalls]);
 
@@ -236,6 +260,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(
             <div className="mt-4 flex w-full flex-col">
               {toolCalls.map((toolCall: ToolCall, idx, arr) => {
                 if (toolCall.name === "task") return null;
+                if (nestedToolCallIds.has(toolCall.id)) return null;
                 const uiComponent = ui?.find(
                   (u) => u.metadata?.tool_call_id === toolCall.id
                 );
@@ -292,6 +317,66 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                             content={extractSubAgentContent(subAgent.input)}
                           />
                         </div>
+
+                        {(() => {
+                          const run = subAgentRunsByTaskId?.[subAgent.id];
+                          if (!run) return null;
+
+                          const timeline = [
+                            ...run.progress.map((p) => ({
+                              type: "progress" as const,
+                              key: p.messageId ?? `${subAgent.id}-${p.order}`,
+                              order: p.order,
+                              text: p.text,
+                            })),
+                            ...run.toolCalls.map((tc) => ({
+                              type: "tool" as const,
+                              key: tc.id,
+                              order: tc.order ?? Number.MAX_SAFE_INTEGER,
+                              toolCall: tc,
+                            })),
+                          ].sort((a, b) => a.order - b.order);
+
+                          if (timeline.length === 0) return null;
+
+                          return (
+                            <div className="mb-4">
+                              <h4 className="text-primary/70 mb-2 text-xs font-semibold uppercase tracking-wider">
+                                Timeline
+                              </h4>
+                              <div className="max-h-80 overflow-y-auto rounded-sm border border-border bg-muted/20 p-2">
+                                <div className="flex flex-col gap-2">
+                                  {timeline.map((item) => {
+                                    if (item.type === "progress") {
+                                      return (
+                                        <div
+                                          key={item.key}
+                                          className="whitespace-pre-wrap break-words font-mono text-xs leading-6 text-foreground"
+                                        >
+                                          {item.text}
+                                        </div>
+                                      );
+                                    }
+                                    const uiComponent = ui?.find(
+                                      (u) =>
+                                        u.metadata?.tool_call_id ===
+                                        item.toolCall.id
+                                    );
+                                    return (
+                                      <ToolCallBox
+                                        key={item.key}
+                                        toolCall={item.toolCall}
+                                        uiComponent={uiComponent}
+                                        stream={stream}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
                         {subAgent.output && (
                           <>
                             <h4 className="text-primary/70 mb-2 text-xs font-semibold uppercase tracking-wider">
