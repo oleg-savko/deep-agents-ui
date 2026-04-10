@@ -539,17 +539,21 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
 
       messages.forEach((message: Message, messageIndex: number) => {
         if (message.type === "ai") {
+          const inferredTaskId = inferActiveTaskIdForMessage(message);
           const toolCallsInMessage = extractToolCallsFromAiMessage(message);
           const toolCallsWithStatus = toolCallsInMessage.map((tc) =>
             toToolCall(tc, messageIndex)
           );
-          messageMap.set(message.id!, {
-            message,
-            toolCalls: toolCallsWithStatus,
-          });
+          // AI messages produced while a subagent (`task`) run is active should only
+          // appear in the subagent timeline, not the main chat transcript.
+          if (!inferredTaskId) {
+            messageMap.set(message.id!, {
+              message,
+              toolCalls: toolCallsWithStatus,
+            });
+          }
 
           // If we’re currently inside a task run, collect AI progress text and nested tool calls.
-          const inferredTaskId = inferActiveTaskIdForMessage(message);
           if (inferredTaskId && message.id) {
             const currentTaskId = inferredTaskId;
             const run = subAgentRunsByTaskId.get(currentTaskId);
