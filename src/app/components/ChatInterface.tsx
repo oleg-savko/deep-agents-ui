@@ -272,7 +272,10 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
         const newAttachments = await Promise.all(
           filesWithTempIds.map(async ({ file, tempId }) => ({
             tempId,
-            attachment: await readFileAsAttachment(file),
+            attachment: {
+              ...(await readFileAsAttachment(file)),
+              id: tempId,
+            },
           }))
         );
         setAttachments((prev) => {
