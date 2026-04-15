@@ -1,0 +1,123 @@
+{
+  "deployments": [
+    {
+      "value": "http://localhost:2024",
+      "label": "Local Deployment"
+    }
+  ],
+  "assistants": [
+    {
+      "value": "research",
+      "label": "Research Agent",
+      "defaultModel": "litellm:openai/bedrock-nemotron-super-120b",
+      "models": [
+        {
+          "value": "litellm:openai/bedrock-nemotron-super-120b",
+          "label": "litellm:openai/bedrock-nemotron-super-120b"
+        },
+        {
+          "value": "litellm:openai/bedrock-nova-2-lite",
+          "label": "litellm:openai/bedrock-nova-2-lite"
+        },
+        {
+          "value": "litellm:openai/bedrock-claude-haiku-4-5",
+          "label": "litellm:openai/bedrock-claude-haiku-4-5"
+        },
+        {
+          "value": "litellm:openai/bedrock-claude-sonnet-4-6",
+          "label": "litellm:openai/bedrock-claude-sonnet-4-6"
+        }
+      ],
+      "subagentModelOverrideTemplates": {
+        "default-researcher": "litellm:openai/bedrock-nemotron-super-120b",
+        "ba-requirements-reviewer": "litellm:openai/bedrock-nemotron-super-120b",
+        "business-story-to-ba-specification-developer": "litellm:openai/bedrock-nemotron-super-120b"
+      }
+    },
+    {
+      "value": "chat",
+      "label": "Chat Agent",
+      "defaultModel": "litellm:openai/bedrock-nemotron-super-120b",
+      "models": [
+        {
+          "value": "litellm:openai/bedrock-nemotron-super-120b",
+          "label": "litellm:openai/bedrock-nemotron-super-120b"
+        }
+      ]
+    },
+    {
+      "value": "sd_chat",
+      "label": "SD Chat Agent",
+      "defaultModel": "litellm:openai/bedrock-nemotron-super-120b",
+      "models": [
+        {
+          "value": "litellm:openai/bedrock-nemotron-super-120b",
+          "label": "litellm:openai/bedrock-nemotron-super-120b"
+        }
+      ]
+    },
+    {
+      "value": "story_chat",
+      "label": "Story Chat Agent",
+      "defaultModel": "litellm:openai/bedrock-nemotron-super-120b",
+      "models": [
+        {
+          "value": "litellm:openai/bedrock-nemotron-super-120b",
+          "label": "litellm:openai/bedrock-nemotron-super-120b"
+        }
+      ]
+    },
+    {
+      "value": "qa_research",
+      "label": "QA Research Agent",
+      "defaultModel": "litellm:openai/bedrock-claude-sonnet-4-6",
+      "models": [
+        {
+          "value": "litellm:openai/bedrock-nemotron-super-120b",
+          "label": "litellm:openai/bedrock-nemotron-super-120b"
+        },
+        {
+          "value": "litellm:openai/bedrock-nova-2-lite",
+          "label": "litellm:openai/bedrock-nova-2-lite"
+        },
+        {
+          "value": "litellm:openai/bedrock-claude-haiku-4-5",
+          "label": "litellm:openai/bedrock-claude-haiku-4-5"
+        },
+        {
+          "value": "litellm:openai/bedrock-claude-sonnet-4-6",
+          "label": "litellm:openai/bedrock-claude-sonnet-4-6"
+        }
+      ],
+      "subagentModelOverrideTemplates": {
+        "spec-researcher-test": "litellm:openai/bedrock-nemotron-super-120b",
+        "qa-requirements-researcher": "litellm:openai/bedrock-nemotron-super-120b"
+      }
+    },
+    {
+      "value": "spec_research",
+      "label": "Spec Research Agent",
+      "defaultModel": "litellm:openai/bedrock-nemotron-super-120b",
+      "models": [
+        {
+          "value": "litellm:openai/bedrock-nemotron-super-120b",
+          "label": "litellm:openai/bedrock-nemotron-super-120b"
+        }
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "value": "CRDES",
+      "label": "CRDES"
+    },
+    {
+      "value": "MMES",
+      "label": "MMES"
+    },
+    {
+      "value": "MMMX",
+      "label": "MMMX"
+    }
+  ]
+}

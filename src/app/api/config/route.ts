@@ -19,7 +19,6 @@ export async function GET() {
         deployments: [],
         assistants: [],
         projects: [],
-        models: [],
       });
     }
 
@@ -32,7 +31,6 @@ export async function GET() {
         deployments: [],
         assistants: [],
         projects: [],
-        models: [],
       },
       { status: 500 }
     );

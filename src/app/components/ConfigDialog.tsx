@@ -59,6 +59,10 @@ interface LLMModel {
 interface Assistant {
   value: string;
   label: string;
+  /** Available models for this assistant (from config.json). */
+  models?: LLMModel[];
+  /** Default model to preselect for this assistant (from config.json). */
+  defaultModel?: string;
   /** Default subagent → model map for this assistant (from config.json). */
   subagentModelOverrideTemplates?: Record<string, string>;
 }
@@ -101,7 +105,6 @@ export function ConfigDialog({
     useState<Record<string, Record<string, string>>>({});
   const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [llmModels, setLlmModels] = useState<LLMModel[]>([]);
   const [assistants, setAssistants] = useState<Assistant[]>([]);
   const [showInternalSteps, setShowInternalSteps] = useState(
     initialConfig?.showInternalSteps ?? false,
@@ -111,6 +114,9 @@ export function ConfigDialog({
   const overridesMapRef = useRef(overridesByAssistant);
   assistantIdRef.current = assistantId;
   overridesMapRef.current = overridesByAssistant;
+
+  const selectedAssistant = assistants.find((a) => a.value === assistantId);
+  const availableModelsForAssistant = selectedAssistant?.models ?? [];
 
   useEffect(() => {
     if (open && initialConfig) {
@@ -161,7 +167,6 @@ export function ConfigDialog({
           const data = await response.json();
           setDeployments(data.deployments || []);
           setProjects(data.projects || []);
-          setLlmModels(data.models || []);
           setAssistants(data.assistants || []);
           setSubagentModelOverrideTemplates(
             buildSubagentTemplatesByAssistantId(data),
@@ -176,6 +181,24 @@ export function ConfigDialog({
       loadConfig();
     }
   }, [open]);
+
+  // When assistant changes (or config loads), ensure current model is valid for that assistant.
+  // If invalid or empty, fall back to assistant.defaultModel (or global default).
+  useEffect(() => {
+    if (!open) return;
+    const a = selectedAssistant;
+    if (!a) return;
+    const list = a.models ?? [];
+    if (list.length === 0) return;
+
+    const has = (name: string) => list.some((m) => m.value === name);
+    if (llmModelName && has(llmModelName)) return;
+
+    const next = a.defaultModel && has(a.defaultModel) ? a.defaultModel : list[0]?.value;
+    if (next && next !== llmModelName) {
+      setLlmModelName(next);
+    }
+  }, [assistantId, assistants, llmModelName, open, selectedAssistant]);
 
   const handleSave = () => {
     if (!deploymentUrl || !assistantId || !llmModelName) {
@@ -315,7 +338,13 @@ export function ConfigDialog({
                 <SelectValue placeholder="Select a model" />
               </SelectTrigger>
               <SelectContent>
-                {llmModels.map((model) => (
+                {[
+                  ...availableModelsForAssistant,
+                  ...(llmModelName &&
+                  !availableModelsForAssistant.some((m) => m.value === llmModelName)
+                    ? [{ value: llmModelName, label: llmModelName }]
+                    : []),
+                ].map((model) => (
                   <SelectItem key={model.value} value={model.value}>
                     {model.label}
                   </SelectItem>
