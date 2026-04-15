@@ -185,6 +185,9 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [attachments, setAttachments] = useState<Attachment[]>([]);
+    const [loadingAttachmentIds, setLoadingAttachmentIds] = useState<Set<string>>(
+      () => new Set()
+    );
     const [isDragOver, setIsDragOver] = useState(false);
     const isControlledView = typeof view !== "undefined";
     const workflowView = isControlledView
@@ -246,10 +249,43 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
         });
         if (validFiles.length === 0) return;
 
+        const filesWithTempIds = validFiles.map((file) => ({
+          file,
+          tempId: `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        }));
+
+        const tempAttachments = filesWithTempIds.map(({ file, tempId }) => ({
+          id: tempId,
+          name: file.name,
+          type: resolveImageMimeType(file.type, file.name) ?? file.type,
+          size: file.size,
+          content: "",
+        }));
+
+        setAttachments((prev) => [...prev, ...tempAttachments]);
+        setLoadingAttachmentIds((prev) => {
+          const next = new Set(prev);
+          filesWithTempIds.forEach(({ tempId }) => next.add(tempId));
+          return next;
+        });
+
         const newAttachments = await Promise.all(
-          validFiles.map(readFileAsAttachment)
+          filesWithTempIds.map(async ({ file, tempId }) => ({
+            tempId,
+            attachment: await readFileAsAttachment(file),
+          }))
         );
-        setAttachments((prev) => [...prev, ...newAttachments]);
+        setAttachments((prev) => {
+          const byTempId = new Map(
+            newAttachments.map(({ tempId, attachment }) => [tempId, attachment])
+          );
+          return prev.map((attachment) => byTempId.get(attachment.id) ?? attachment);
+        });
+        setLoadingAttachmentIds((prev) => {
+          const next = new Set(prev);
+          filesWithTempIds.forEach(({ tempId }) => next.delete(tempId));
+          return next;
+        });
       },
       []
     );
@@ -1107,7 +1143,14 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                       key={attachment.id}
                       className="group relative flex items-center gap-1.5 rounded-lg border border-border bg-sidebar px-2 py-1.5 text-xs"
                     >
-                      {attachment.preview ? (
+                      {loadingAttachmentIds.has(attachment.id) ? (
+                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-muted/40">
+                          <LoaderCircle
+                            size={14}
+                            className="animate-spin text-muted-foreground"
+                          />
+                        </div>
+                      ) : attachment.preview ? (
                         <img
                           src={attachment.preview}
                           alt={attachment.name}
