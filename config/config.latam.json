@@ -91,7 +91,7 @@
       ],
       "subagentModelOverrideTemplates": {
         "spec-researcher-test": "litellm:openai/bedrock-nemotron-super-120b",
-        "qa-requirements-researcher": "litellm:openai/bedrock-nemotron-super-120b"
+        "qa-requirements-researcher": "litellm:openai/bedrock-claude-sonnet-4-6"
       }
     },
     {
