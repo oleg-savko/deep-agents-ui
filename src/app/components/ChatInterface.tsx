@@ -40,6 +40,7 @@ import { useQueryState } from "nuqs";
 import { cn } from "@/lib/utils";
 import { useStickToBottom } from "use-stick-to-bottom";
 import { FilesPopover } from "@/app/components/TasksFilesSidebar";
+import { toast } from "sonner";
 
 interface ChatInterfaceProps {
   assistant: Assistant | null;
@@ -54,6 +55,7 @@ interface ChatInterfaceProps {
   controls: React.ReactNode;
   banner?: React.ReactNode;
   skeleton: React.ReactNode;
+  isAttachmentsAllowe?: boolean;
 }
 
 const MAX_FILE_SIZE_DEFAULT = 10 * 1024 * 1024; // 10 MB
@@ -175,6 +177,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     banner,
     hideInternalToggle,
     skeleton,
+    isAttachmentsAllowe = true,
   }) => {
     const [threadId] = useQueryState("threadId");
     const [agentId] = useQueryState("agentId");
@@ -225,11 +228,19 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
 
     const processFiles = useCallback(
       async (fileList: FileList | File[]) => {
+        if (!isAttachmentsAllowe) return;
         const files = Array.from(fileList);
         const validFiles = files.filter((f) => {
           const isImage = isImageFile(f.type, f.name);
           const isDoc = isDocumentFile(f.type, f.name);
           const isTxt = isTextFile(f.type, f.name);
+
+          const isAllowed = isImage || isDoc || isTxt;
+
+          if (!isAllowed) {
+            toast.error(`File "${f.name}" has unsupported type, skipping.`);
+            return false;
+          }
 
           // Allow much larger size for non-image, non-text "documents"
           // (this includes meeting recordings: audio/video files).
@@ -290,7 +301,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           return next;
         });
       },
-      []
+      [isAttachmentsAllowe]
     );
 
     const removeAttachment = useCallback((id: string) => {
@@ -594,8 +605,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
 
           // If we’re currently inside a task run, collect AI progress text and nested tool calls.
           if (inferredTaskId && message.id) {
-            const currentTaskId = inferredTaskId;
-            const run = subAgentRunsByTaskId.get(currentTaskId);
+            const run = subAgentRunsByTaskId.get(inferredTaskId);
             if (run) {
               const text = extractStringFromMessageContent(message).trim();
               if (text) {
@@ -680,8 +690,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           // Otherwise, it may be a nested tool call result inside the current task run.
           const inferredTaskId = inferActiveTaskIdForMessage(message);
           if (inferredTaskId) {
-            const currentTaskId = inferredTaskId;
-            const run = subAgentRunsByTaskId.get(currentTaskId);
+            const run = subAgentRunsByTaskId.get(inferredTaskId);
             if (run) {
               const nestedIdx = run.toolCalls.findIndex((tc) => tc.id === toolCallId);
               const toolResultText = extractStringFromMessageContent(message);
@@ -1100,7 +1109,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                             files={files}
                             setFiles={setFiles}
                             editDisabled={
-                              isLoading === true || interrupt !== undefined
+                              isLoading || interrupt !== undefined
                             }
                           />
                         </div>
@@ -1117,10 +1126,11 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="
+              {isAttachmentsAllowe && (
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="
                   image/*,
                   .pdf,.doc,.docx,.xlsx,.xls,
                   .txt,.md,.csv,.json,.yaml,.yml,.xml,
@@ -1130,10 +1140,11 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                   .wav,.mp3,.m4a,.aac,.ogg,.flac,
                   .mp4,.m4v,.mov,.avi,.mkv
                 "
-                multiple
-                className="hidden"
-                onChange={handleFileInputChange}
-              />
+                  multiple
+                  className="hidden"
+                  onChange={handleFileInputChange}
+                />
+              )}
               {isDragOver && (
                 <div className="flex items-center justify-center border-b border-dashed border-primary/30 bg-primary/5 px-[18px] py-4 text-sm text-primary/60">
                   Drop files here to attach
@@ -1213,15 +1224,17 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
               <div className="flex justify-between gap-2 p-3">
                 <div className="flex items-center gap-2">
                   {controls}
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                    title="Attach files"
-                    aria-label="Attach files"
-                  >
-                    <Paperclip size={16} />
-                  </button>
+                  {isAttachmentsAllowe && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                      title="Attach files"
+                      aria-label="Attach files"
+                    >
+                      <Paperclip size={16} />
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex justify-end gap-2">
