@@ -611,10 +611,12 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
             if (toolCallIndex === -1) {
               continue;
             }
+            const rawContent = (message as any).content;
             data.toolCalls[toolCallIndex] = {
               ...data.toolCalls[toolCallIndex],
               status: "completed" as const,
               result: extractStringFromMessageContent(message),
+              resultContent: Array.isArray(rawContent) ? rawContent : rawContent ?? null,
               resultImages: extractImagesFromMessageContent(message),
             };
             break;
@@ -818,12 +820,17 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
               skeleton
             ) : (
               <>
-                {processedMessages.map((data, index) => {
-                  return (
+                {(() => {
+                  // Aggregate tool calls once per render so ChatMessage can
+                  // resolve `[[chart]]` placeholders in final-answer messages
+                  // that don't carry their own tool calls.
+                  const allToolCalls = processedMessages.flatMap((m) => m.toolCalls);
+                  return processedMessages.map((data, index) => (
                     <ChatMessage
                       key={data.message.id}
                       message={data.message}
                       toolCalls={data.toolCalls}
+                      allToolCalls={allToolCalls}
                       subAgentRunsByTaskId={subAgentRunsByTaskId}
                       onRestartFromAIMessage={handleRestartFromAIMessage}
                       onRestartFromSubTask={handleRestartFromSubTask}
@@ -839,8 +846,8 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                           : undefined
                       }
                     />
-                  );
-                })}
+                  ));
+                })()}
                 {interrupt && debugMode && (
                   <div className="mt-4">
                     <Button

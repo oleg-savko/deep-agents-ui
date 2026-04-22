@@ -5,6 +5,7 @@ import { RotateCcw, FileIcon } from "lucide-react";
 import { SubAgentIndicator } from "@/app/components/SubAgentIndicator";
 import { ToolCallBox } from "@/app/components/ToolCallBox";
 import { MarkdownContent } from "@/app/components/MarkdownContent";
+import { ChartAppRenderer } from "@/app/components/ChartAppRenderer";
 import type { SubAgent, SubAgentRun, SubAgentStatus, ToolCall } from "@/app/types/types";
 import { Interrupt, Message } from "@langchain/langgraph-sdk";
 import {
@@ -20,21 +21,74 @@ import { cn } from "@/lib/utils";
 import { FeedbackButtons } from "@/app/components/FeedbackButtons";
 
 function formatAgentResponseDuration(ms: number): string {
-  if (ms < 1000) {
-    return `${ms} ms`;
-  }
+  if (ms < 1000) return `${ms} ms`;
   const seconds = ms / 1000;
-  if (seconds < 60) {
-    return `${seconds.toFixed(1)} s`;
-  }
+  if (seconds < 60) return `${seconds.toFixed(1)} s`;
   const minutes = Math.floor(seconds / 60);
   const rem = seconds % 60;
   return `${minutes}m ${rem.toFixed(0)}s`;
 }
 
+const CHART_PLACEHOLDER_RE = /\[\[chart(?::(\d+))?\]\]/g;
+
+/**
+ * Chart placeholder format (from chart_placeholders_middleware.py):
+ *   [[chart]]   → 1st chart
+ *   [[chart:N]] → Nth chart (1-indexed)
+ *
+ * Resolution is positional over the provided list of chart tool calls: the
+ * agent's own tool-call history determines the mapping.
+ */
+function renderChartPlaceholders(markdown: string, chartToolCalls: ToolCall[]) {
+  const parts: Array<{ kind: "md"; value: string } | { kind: "chart"; index: number }> = [];
+  let lastIndex = 0;
+  CHART_PLACEHOLDER_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = CHART_PLACEHOLDER_RE.exec(markdown)) !== null) {
+    if (m.index > lastIndex) parts.push({ kind: "md", value: markdown.slice(lastIndex, m.index) });
+    const n = m[1] ? Number(m[1]) : 1;
+    parts.push({ kind: "chart", index: Number.isFinite(n) && n > 0 ? n - 1 : 0 });
+    lastIndex = m.index + m[0].length;
+  }
+  if (lastIndex < markdown.length) parts.push({ kind: "md", value: markdown.slice(lastIndex) });
+
+  return (
+    <>
+      {parts.map((p, i) => {
+        if (p.kind === "md") {
+          if (!p.value.trim()) return <React.Fragment key={`md-${i}`} />;
+          return <MarkdownContent key={`md-${i}`} content={p.value} />;
+        }
+        const toolCall = chartToolCalls[p.index];
+        if (!toolCall) {
+          const token = `[[chart${p.index > 0 ? `:${p.index + 1}` : ""}]]`;
+          return <MarkdownContent key={`md-missing-${i}`} content={token} />;
+        }
+        return (
+          <ChartAppRenderer
+            key={`chart-${toolCall.id}-${i}`}
+            toolCall={toolCall}
+            className="my-3 w-full overflow-hidden rounded-md border border-border bg-background"
+          />
+        );
+      })}
+    </>
+  );
+}
+
+/** Returns true if the tool call's args declare a chart render intent. */
+function hasChartIntent(tc: ToolCall): boolean {
+  const args: any = typeof tc.args === "string" ? (() => { try { return JSON.parse(tc.args as any); } catch { return {}; } })() : tc.args;
+  const render = args?.render;
+  const kind = typeof render === "string" ? render : render?.type;
+  return kind === "bar" || kind === "line" || kind === "pie";
+}
+
 interface ChatMessageProps {
   message: Message;
   toolCalls: ToolCall[];
+  /** All tool calls from the thread, for resolving [[chart]] placeholders in final-answer messages. */
+  allToolCalls?: ToolCall[];
   subAgentRunsByTaskId?: Record<string, SubAgentRun>;
   onRestartFromAIMessage: (message: Message) => void;
   onRestartFromSubTask: (toolCallId: string) => void;
@@ -44,7 +98,6 @@ interface ChatMessageProps {
   interrupt?: Interrupt;
   ui?: any[];
   stream?: any;
-  /** Wall-clock time for the last completed agent run that produced this AI message (client-measured). */
   responseDurationMs?: number;
 }
 
@@ -52,6 +105,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(
   ({
     message,
     toolCalls,
+    allToolCalls,
     subAgentRunsByTaskId,
     onRestartFromAIMessage,
     onRestartFromSubTask,
@@ -71,15 +125,9 @@ export const ChatMessage = React.memo<ChatMessageProps>(
     const hasContent = messageContent && messageContent.trim() !== "";
     const hasToolCalls = toolCalls.length > 0;
 
-    const imageBlocks = useMemo(
-      () => extractImagesFromMessageContent(message),
-      [message]
-    );
+    const imageBlocks = useMemo(() => extractImagesFromMessageContent(message), [message]);
     const toolResultImageUrls = useMemo(
-      () =>
-        toolCalls.flatMap((tc) =>
-          (tc.resultImages ?? []).map((img) => img.url)
-        ),
+      () => toolCalls.flatMap((tc) => (tc.resultImages ?? []).map((img) => img.url)),
       [toolCalls]
     );
     const displayImageUrls = useMemo(
@@ -87,65 +135,46 @@ export const ChatMessage = React.memo<ChatMessageProps>(
       [imageBlocks, toolResultImageUrls]
     );
     const aiMarkdownForDisplay = useMemo(
-      () =>
-        isAIMessage
-          ? stripUndisplayableMarkdownImages(messageContent)
-          : messageContent,
+      () => (isAIMessage ? stripUndisplayableMarkdownImages(messageContent) : messageContent),
       [isAIMessage, messageContent]
     );
     const fileAttachments = useMemo(
       () => extractFileAttachmentsFromMessageContent(message),
       [message]
     );
-    const hasAttachments =
-      displayImageUrls.length > 0 || fileAttachments.length > 0;
+    const hasAttachments = displayImageUrls.length > 0 || fileAttachments.length > 0;
 
     const nestedToolCallIds = useMemo(() => {
       const set = new Set<string>();
       if (!subAgentRunsByTaskId) return set;
       for (const run of Object.values(subAgentRunsByTaskId)) {
-        for (const tc of run.toolCalls) {
-          set.add(tc.id);
-        }
+        for (const tc of run.toolCalls) set.add(tc.id);
       }
       return set;
     }, [subAgentRunsByTaskId]);
 
     const subAgents = useMemo(() => {
-      const toSubAgentStatus = (
-        s: ToolCall["status"]
-      ): SubAgentStatus => {
+      const toSubAgentStatus = (s: ToolCall["status"]): SubAgentStatus => {
         if (s === "completed") return "completed";
         if (s === "error") return "error";
         if (s === "interrupted") return "interrupted";
-        // A pending task tool call typically means “running”.
         return "active";
       };
       return toolCalls
-        .filter((toolCall: ToolCall) => {
-          return (
-            toolCall.name === "task" &&
-            toolCall.args["subagent_type"] &&
-            toolCall.args["subagent_type"] !== "" &&
-            toolCall.args["subagent_type"] !== null
-          );
-        })
-        .map((toolCall: ToolCall) => {
-          const subAgent: SubAgent = {
-            id: toolCall.id,
-            name: toolCall.name,
-            subAgentName: String(toolCall.args["subagent_type"] || ""),
-            input: toolCall.args,
-            output: toolCall.result ? { result: toolCall.result } : undefined,
-            status: toSubAgentStatus(toolCall.status),
-          };
-          return subAgent;
-        });
+        .filter((tc) => tc.name === "task" && tc.args["subagent_type"])
+        .map(
+          (tc): SubAgent => ({
+            id: tc.id,
+            name: tc.name,
+            subAgentName: String(tc.args["subagent_type"] || ""),
+            input: tc.args,
+            output: tc.result ? { result: tc.result } : undefined,
+            status: toSubAgentStatus(tc.status),
+          })
+        );
     }, [toolCalls]);
 
-    const [expandedSubAgents, setExpandedSubAgents] = useState<
-      Record<string, boolean>
-    >({});
+    const [expandedSubAgents, setExpandedSubAgents] = useState<Record<string, boolean>>({});
     const isSubAgentExpanded = useCallback(
       (id: string) => expandedSubAgents[id] ?? true,
       [expandedSubAgents]
@@ -159,6 +188,20 @@ export const ChatMessage = React.memo<ChatMessageProps>(
 
     const interruptTitle = interrupt ? getInterruptTitle(interrupt) : "";
 
+    const hasChartPlaceholders =
+      isAIMessage &&
+      typeof aiMarkdownForDisplay === "string" &&
+      aiMarkdownForDisplay.includes("[[chart");
+
+    // For final-answer messages whose toolCalls are empty, the chart tool
+    // calls live on earlier messages; pull from `allToolCalls` in that case.
+    const chartToolCalls = useMemo(() => {
+      if (!hasChartPlaceholders) return [];
+      const source =
+        toolCalls.some(hasChartIntent) || !allToolCalls?.length ? toolCalls : allToolCalls;
+      return source.filter(hasChartIntent);
+    }, [hasChartPlaceholders, toolCalls, allToolCalls]);
+
     return (
       <div
         className={cn(
@@ -166,12 +209,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(
           isUser && "flex-row-reverse"
         )}
       >
-        <div
-          className={cn(
-            "min-w-0 max-w-full",
-            isUser ? "max-w-[70%]" : "w-full"
-          )}
-        >
+        <div className={cn("min-w-0 max-w-full", isUser ? "max-w-[70%]" : "w-full")}>
           {(hasContent || hasAttachments || debugMode) && (
             <div className={cn("relative flex items-end gap-0")}>
               <div
@@ -209,13 +247,8 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                         key={idx}
                         className="flex items-center gap-1.5 rounded-md border border-border bg-background/50 px-2 py-1 text-xs"
                       >
-                        <FileIcon
-                          size={12}
-                          className="flex-shrink-0 text-muted-foreground"
-                        />
-                        <span className="max-w-[200px] truncate font-medium">
-                          {file.name}
-                        </span>
+                        <FileIcon size={12} className="flex-shrink-0 text-muted-foreground" />
+                        <span className="max-w-[200px] truncate font-medium">{file.name}</span>
                       </div>
                     ))}
                   </div>
@@ -227,7 +260,11 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                     </p>
                   ) : null
                 ) : hasContent ? (
-                  <MarkdownContent content={aiMarkdownForDisplay} />
+                  hasChartPlaceholders ? (
+                    renderChartPlaceholders(aiMarkdownForDisplay, chartToolCalls)
+                  ) : (
+                    <MarkdownContent content={aiMarkdownForDisplay} />
+                  )
                 ) : null}
               </div>
               {debugMode && isAIMessage && !(isLastMessage && isLoading) && (
@@ -240,30 +277,25 @@ export const ChatMessage = React.memo<ChatMessageProps>(
               )}
             </div>
           )}
-          {isAIMessage &&
-            !isLoading &&
-            message.id &&
-            (hasContent || responseDurationMs != null) && (
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                {hasContent && <FeedbackButtons traceId={message.id} />}
-                {responseDurationMs != null && (
-                  <span
-                    className="text-muted-foreground text-xs tabular-nums"
-                    title="Time from your request until this reply finished (measured in the browser)"
-                  >
-                    {formatAgentResponseDuration(responseDurationMs)}
-                  </span>
-                )}
-              </div>
-            )}
+          {isAIMessage && !isLoading && message.id && (hasContent || responseDurationMs != null) && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+              {hasContent && <FeedbackButtons traceId={message.id} />}
+              {responseDurationMs != null && (
+                <span
+                  className="text-muted-foreground text-xs tabular-nums"
+                  title="Time from your request until this reply finished (measured in the browser)"
+                >
+                  {formatAgentResponseDuration(responseDurationMs)}
+                </span>
+              )}
+            </div>
+          )}
           {hasToolCalls && debugMode && (
             <div className="mt-4 flex w-full flex-col">
-              {toolCalls.map((toolCall: ToolCall, idx, arr) => {
+              {toolCalls.map((toolCall, idx, arr) => {
                 if (toolCall.name === "task") return null;
                 if (nestedToolCallIds.has(toolCall.id)) return null;
-                const uiComponent = ui?.find(
-                  (u) => u.metadata?.tool_call_id === toolCall.id
-                );
+                const uiComponent = ui?.find((u) => u.metadata?.tool_call_id === toolCall.id);
                 const isInterrupted =
                   idx === arr.length - 1 &&
                   toolCall.name === interruptTitle &&
@@ -283,10 +315,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(
           {!isUser && subAgents.length > 0 && debugMode && (
             <div className="flex w-fit max-w-full flex-col gap-4">
               {subAgents.map((subAgent) => (
-                <div
-                  key={subAgent.id}
-                  className="flex w-full flex-col gap-2"
-                >
+                <div key={subAgent.id} className="flex w-full flex-col gap-2">
                   <div className="flex items-end gap-2">
                     <div className="w-[calc(100%-100px)]">
                       <SubAgentIndicator
@@ -313,15 +342,12 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                           Input
                         </h4>
                         <div className="mb-4">
-                          <MarkdownContent
-                            content={extractSubAgentContent(subAgent.input)}
-                          />
+                          <MarkdownContent content={extractSubAgentContent(subAgent.input)} />
                         </div>
 
                         {(() => {
                           const run = subAgentRunsByTaskId?.[subAgent.id];
                           if (!run) return null;
-
                           const timeline = [
                             ...run.progress.map((p) => ({
                               type: "progress" as const,
@@ -336,7 +362,6 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                               toolCall: tc,
                             })),
                           ].sort((a, b) => a.order - b.order);
-
                           if (timeline.length === 0) return null;
 
                           return (
@@ -358,9 +383,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                                       );
                                     }
                                     const uiComponent = ui?.find(
-                                      (u) =>
-                                        u.metadata?.tool_call_id ===
-                                        item.toolCall.id
+                                      (u) => u.metadata?.tool_call_id === item.toolCall.id
                                     );
                                     return (
                                       <ToolCallBox
@@ -382,9 +405,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                             <h4 className="text-primary/70 mb-2 text-xs font-semibold uppercase tracking-wider">
                               Output
                             </h4>
-                            <MarkdownContent
-                              content={extractSubAgentContent(subAgent.output)}
-                            />
+                            <MarkdownContent content={extractSubAgentContent(subAgent.output)} />
                           </>
                         )}
                       </div>
