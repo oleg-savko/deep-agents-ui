@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Assistant } from "@langchain/langgraph-sdk";
 import { useQueryState } from "nuqs";
 import { ClientProvider } from "@/providers/ClientProvider";
@@ -8,8 +9,7 @@ import { ChatInterface } from "@/app/components/ChatInterface";
 import { Button } from "@/components/ui/button";
 
 const EMBED_DEPLOYMENT_URL =
-  process.env.NEXT_PUBLIC_EMBED_DEPLOYMENT_URL ||
-  "http://localhost:2024";
+  process.env.NEXT_PUBLIC_EMBED_DEPLOYMENT_URL || "";
 const EMBED_ASSISTANT_ID = "mt_chat";
 const EMBED_MODEL_NAME = "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit";
 
@@ -17,7 +17,7 @@ export default function EmbedPage() {
   const [_threadId, setThreadId] = useQueryState("threadId");
 
   const langsmithApiKey = process.env.NEXT_PUBLIC_LANGSMITH_API_KEY || "";
-  const assistant: Assistant = {
+  const assistant: Assistant = useMemo(() => ({
       assistant_id: EMBED_ASSISTANT_ID,
       graph_id: EMBED_ASSISTANT_ID,
       created_at: new Date().toISOString(),
@@ -32,7 +32,7 @@ export default function EmbedPage() {
       version: 1,
       name: "Embed Assistant",
       context: {},
-    };
+  }), []);
 
   return (
     <ClientProvider
@@ -54,7 +54,7 @@ export default function EmbedPage() {
             assistant={assistant}
             debugMode={false}
             hideInternalToggle
-            isAttachmentsAllowe={false}
+            isAttachmentsAllowed={false}
             controls={<></>}
             skeleton={
               <div className="flex items-center justify-center p-8">

@@ -55,7 +55,7 @@ interface ChatInterfaceProps {
   controls: React.ReactNode;
   banner?: React.ReactNode;
   skeleton: React.ReactNode;
-  isAttachmentsAllowe?: boolean;
+  isAttachmentsAllowed?: boolean;
 }
 
 const MAX_FILE_SIZE_DEFAULT = 10 * 1024 * 1024; // 10 MB
@@ -177,7 +177,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     banner,
     hideInternalToggle,
     skeleton,
-    isAttachmentsAllowe = true,
+    isAttachmentsAllowed = true,
   }) => {
     const [threadId] = useQueryState("threadId");
     const [agentId] = useQueryState("agentId");
@@ -228,7 +228,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
 
     const processFiles = useCallback(
       async (fileList: FileList | File[]) => {
-        if (!isAttachmentsAllowe) return;
+        if (!isAttachmentsAllowed) return;
         const files = Array.from(fileList);
         const validFiles = files.filter((f) => {
           const isImage = isImageFile(f.type, f.name);
@@ -301,7 +301,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           return next;
         });
       },
-      [isAttachmentsAllowe]
+      [isAttachmentsAllowed]
     );
 
     const removeAttachment = useCallback((id: string) => {
@@ -1126,7 +1126,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              {isAttachmentsAllowe && (
+              {isAttachmentsAllowed && (
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -1224,7 +1224,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
               <div className="flex justify-between gap-2 p-3">
                 <div className="flex items-center gap-2">
                   {controls}
-                  {isAttachmentsAllowe && (
+                  {isAttachmentsAllowed && (
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}

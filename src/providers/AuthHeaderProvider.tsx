@@ -17,6 +17,7 @@ export type AuthHeaderContextValue = {
 };
 
 const AuthHeaderContext = createContext<AuthHeaderContextValue | null>(null);
+const MANAGEMENT_ORIGIN = "http://localhost:3001"; //process.env.NEXT_PUBLIC_MANAGEMENT_ORIGIN
 
 export function AuthHeaderProvider({ children }: { children: ReactNode }) {
   const [authorization, setAuthorization] = useState<string | null>(null);
@@ -48,6 +49,31 @@ export function AuthHeaderProvider({ children }: { children: ReactNode }) {
       });
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!MANAGEMENT_ORIGIN) return;
+    window.parent.postMessage({ type: "IFRAME_READY" }, MANAGEMENT_ORIGIN);
+  }, []);
+
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type !== "SET_BEARER_TOKEN") return;
+      if (!MANAGEMENT_ORIGIN || event.origin !== MANAGEMENT_ORIGIN) return;
+
+      const token = event.data.token;
+      if (!token || typeof token !== "string") return;
+
+      console.log("Получен токен:", token);
+      setAuthorization(token.startsWith("Bearer ") ? token : `Bearer ${token}`);
+      setReady(true);
+    };
+
+    window.addEventListener("message", handler);
+
+    return () => {
+      window.removeEventListener("message", handler);
     };
   }, []);
 
