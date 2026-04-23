@@ -61,6 +61,8 @@ interface Assistant {
   label: string;
   /** Default subagent → model map for this assistant (from config.json). */
   subagentModelOverrideTemplates?: Record<string, string>;
+  /** Access control: JWT `ai-groups` required to see this assistant. */
+  aiGroups?: string[];
 }
 
 interface ConfigDialogProps {
