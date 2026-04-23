@@ -17,13 +17,39 @@ export type AuthHeaderContextValue = {
 };
 
 const AuthHeaderContext = createContext<AuthHeaderContextValue | null>(null);
-const MANAGEMENT_ORIGIN = "http://localhost:3001"; //process.env.NEXT_PUBLIC_MANAGEMENT_ORIGIN
+const MANAGEMENT_ORIGIN = "http://localhost:3001";
 
 export function AuthHeaderProvider({ children }: { children: ReactNode }) {
   const [authorization, setAuthorization] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    const isInIframe = window.self !== window.top;
+
+    if (isInIframe) {
+      window.parent.postMessage({ type: "CHAT_IS_READY" }, MANAGEMENT_ORIGIN);
+
+      const handleManagementResponse = (event: MessageEvent) => {
+        if (event.origin !== MANAGEMENT_ORIGIN) return;
+        if (event.data?.type !== "SET_TOKEN") return;
+
+        const token = event.data.token;
+        if (!token || typeof token !== "string") return;
+
+        console.log("Получен токен:", token);
+        setAuthorization(
+          token.startsWith("Bearer ") ? token : `Bearer ${token}`
+        );
+        setReady(true);
+      };
+
+      window.addEventListener("message", handleManagementResponse);
+
+      return () => {
+        window.removeEventListener("message", handleManagementResponse);
+      };
+    }
+
     let cancelled = false;
     fetch("/api/auth/header", { cache: "no-store", credentials: "same-origin" })
       .then(async (r) => {
@@ -49,31 +75,6 @@ export function AuthHeaderProvider({ children }: { children: ReactNode }) {
       });
     return () => {
       cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!MANAGEMENT_ORIGIN) return;
-    window.parent.postMessage({ type: "IFRAME_READY" }, MANAGEMENT_ORIGIN);
-  }, []);
-
-  useEffect(() => {
-    const handler = (event: MessageEvent) => {
-      if (event.data?.type !== "SET_BEARER_TOKEN") return;
-      if (!MANAGEMENT_ORIGIN || event.origin !== MANAGEMENT_ORIGIN) return;
-
-      const token = event.data.token;
-      if (!token || typeof token !== "string") return;
-
-      console.log("Получен токен:", token);
-      setAuthorization(token.startsWith("Bearer ") ? token : `Bearer ${token}`);
-      setReady(true);
-    };
-
-    window.addEventListener("message", handler);
-
-    return () => {
-      window.removeEventListener("message", handler);
     };
   }, []);
 

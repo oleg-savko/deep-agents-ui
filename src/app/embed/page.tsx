@@ -5,6 +5,7 @@ import { Assistant } from "@langchain/langgraph-sdk";
 import { useQueryState } from "nuqs";
 import { ClientProvider } from "@/providers/ClientProvider";
 import { ChatProvider } from "@/providers/ChatProvider";
+import { useAuthHeader } from "@/providers/AuthHeaderProvider";
 import { ChatInterface } from "@/app/components/ChatInterface";
 import { Button } from "@/components/ui/button";
 
@@ -15,6 +16,7 @@ const EMBED_MODEL_NAME = "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit";
 
 export default function EmbedPage() {
   const [_threadId, setThreadId] = useQueryState("threadId");
+  const { authorization, ready } = useAuthHeader();
 
   const langsmithApiKey = process.env.NEXT_PUBLIC_LANGSMITH_API_KEY || "";
   const assistant: Assistant = useMemo(() => ({
@@ -33,6 +35,16 @@ export default function EmbedPage() {
       name: "Embed Assistant",
       context: {},
   }), []);
+
+  if (ready && !authorization) {
+    return (
+      <div className="flex h-screen items-center justify-center p-6">
+        <div className="max-w-md rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          Authorization token is required for embedded chat.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ClientProvider

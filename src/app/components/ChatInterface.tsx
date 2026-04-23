@@ -289,6 +289,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
             },
           }))
         );
+
         setAttachments((prev) => {
           const byTempId = new Map(
             newAttachments.map(({ tempId, attachment }) => [tempId, attachment])
@@ -823,16 +824,17 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       setInput(e.target.value);
     };
 
-    const handleInputResizeStart = (
-      e: React.MouseEvent<HTMLDivElement, MouseEvent>
-    ) => {
+    const handleInputResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
       const el = textareaRef.current;
       if (!el) return;
+
+      const target = e.currentTarget;
+      target.setPointerCapture(e.pointerId);
 
       const startY = e.clientY;
       const startHeight = el.offsetHeight || 0;
 
-      const onMove = (moveEvent: MouseEvent) => {
+      const onMove = (moveEvent: PointerEvent) => {
         const delta = startY - moveEvent.clientY;
         const minHeight = 32; // px
         const maxHeight = 240; // px (~6+ lines)
@@ -844,12 +846,13 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       };
 
       const onUp = () => {
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
+        target.releasePointerCapture(e.pointerId);
+        target.removeEventListener("pointermove", onMove);
+        target.removeEventListener("pointerup", onUp);
       };
 
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
+      target.addEventListener("pointermove", onMove);
+      target.addEventListener("pointerup", onUp);
     };
 
     return (
@@ -1108,9 +1111,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                           <FilesPopover
                             files={files}
                             setFiles={setFiles}
-                            editDisabled={
-                              isLoading || interrupt !== undefined
-                            }
+                            editDisabled={isLoading || interrupt !== undefined}
                           />
                         </div>
                       )}
@@ -1146,7 +1147,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                 />
               )}
               {isDragOver && (
-                <div className="flex items-center justify-center border-b border-dashed border-primary/30 bg-primary/5 px-[18px] py-4 text-sm text-primary/60">
+                <div className="border-primary/30 bg-primary/5 text-primary/60 flex items-center justify-center border-b border-dashed px-[18px] py-4 text-sm">
                   Drop files here to attach
                 </div>
               )}
@@ -1209,7 +1210,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
               )}
               <div
                 className="mx-[18px] mt-1 h-2 cursor-row-resize"
-                onMouseDown={handleInputResizeStart}
+                onPointerDown={handleInputResizeStart}
               />
               <textarea
                 ref={textareaRef}
@@ -1244,8 +1245,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                     onClick={isLoading ? stopStream : handleSubmit}
                     disabled={
                       !isLoading &&
-                      (submitDisabled ||
-                        (!input.trim() && !hasAttachments))
+                      (submitDisabled || (!input.trim() && !hasAttachments))
                     }
                   >
                     {isLoading ? (
