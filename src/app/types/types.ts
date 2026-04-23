@@ -8,8 +8,8 @@ export interface ToolCall {
   name: string;
   args: Record<string, unknown>;
   result?: string;
-  /** Raw tool result blocks (e.g., MCP `resource` content). */
-  resultContent?: unknown;
+  /** LangChain `content_and_artifact` artifact; for MCP Apps tools holds raw MCP content blocks + structured_content. */
+  artifact?: unknown;
   /** Images from tool message content (LangChain image / image_url blocks). */
   resultImages?: ToolResultImage[];
   status: "pending" | "completed" | "error" | "interrupted";

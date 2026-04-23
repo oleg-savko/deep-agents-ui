@@ -340,6 +340,31 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       subAgentRunsCacheRef.current = {};
     }, [threadId, agentId]);
 
+    // Bridge for child components (e.g. ChartAppRenderer) to save a file into
+    // the thread's Files panel without prop-drilling `setFiles`. The detail
+    // carries `resolve`/`reject` so the caller can show save-progress UI.
+    useEffect(() => {
+      const onSave = (e: Event) => {
+        const detail = (
+          e as CustomEvent<{
+            name: string;
+            content: string;
+            resolve?: () => void;
+            reject?: (err: unknown) => void;
+          }>
+        ).detail;
+        if (!detail?.name || typeof detail.content !== "string") {
+          detail?.reject?.(new Error("invalid save payload"));
+          return;
+        }
+        setFiles({ ...(files ?? {}), [detail.name]: detail.content })
+          .then(() => detail.resolve?.())
+          .catch((err) => detail.reject?.(err));
+      };
+      window.addEventListener("mcp-ui-save-file", onSave);
+      return () => window.removeEventListener("mcp-ui-save-file", onSave);
+    }, [files, setFiles]);
+
     const submitDisabled = isLoading || !assistant;
     const hasAttachments = attachments.length > 0;
 
@@ -611,12 +636,12 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
             if (toolCallIndex === -1) {
               continue;
             }
-            const rawContent = (message as any).content;
+            const artifact = (message as any).artifact;
             data.toolCalls[toolCallIndex] = {
               ...data.toolCalls[toolCallIndex],
               status: "completed" as const,
               result: extractStringFromMessageContent(message),
-              resultContent: Array.isArray(rawContent) ? rawContent : rawContent ?? null,
+              artifact: artifact ?? undefined,
               resultImages: extractImagesFromMessageContent(message),
             };
             break;

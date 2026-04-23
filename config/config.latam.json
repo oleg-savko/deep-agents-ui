@@ -3,6 +3,14 @@
     {
       "value": "http://localhost:2024",
       "label": "Local Deployment"
+    },
+    {
+      "value": "https://deep-research-agent.idfaws.com",
+      "label": "[LATAM] Production Deployment"
+    },
+    {
+      "value": "https://deep-research-agent-test.idfaws.com",
+      "label": "[LATAM] Test Deployment"
     }
   ],
   "assistants": [

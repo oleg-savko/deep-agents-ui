@@ -11,7 +11,7 @@
     <script>
       window.addEventListener("message", (event) => {
         const data = event.data;
-        if (!data || typeof data !== "object") return;
+        if (!data || typeof data !== "object" || data.jsonrpc !== "2.0") return;
         if (data.method === "ui/notifications/sandbox-resource-ready") {
           const { html } = data.params || {};
           if (typeof html === "string") {
@@ -22,7 +22,7 @@
         }
       });
       window.parent.postMessage(
-        { method: "ui/notifications/sandbox-proxy-ready", params: {} },
+        { jsonrpc: "2.0", method: "ui/notifications/sandbox-proxy-ready", params: {} },
         "*"
       );
     </script>

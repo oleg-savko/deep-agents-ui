@@ -29,25 +29,35 @@ function formatAgentResponseDuration(ms: number): string {
   return `${minutes}m ${rem.toFixed(0)}s`;
 }
 
-const CHART_PLACEHOLDER_RE = /\[\[chart(?::(\d+))?\]\]/g;
+const APP_PLACEHOLDER_RE = /\[\[(chart|diagram)(?::(\d+))?\]\]/g;
 
 /**
- * Chart placeholder format (from chart_placeholders_middleware.py):
- *   [[chart]]   → 1st chart
- *   [[chart:N]] → Nth chart (1-indexed)
+ * Chart/diagram placeholder format (from chart_placeholders_middleware.py):
+ *   [[chart]]     → 1st chart
+ *   [[chart:N]]   → Nth chart (1-indexed)
+ *   [[diagram]]   → 1st diagram
+ *   [[diagram:N]] → Nth diagram (1-indexed)
  *
- * Resolution is positional over the provided list of chart tool calls: the
- * agent's own tool-call history determines the mapping.
+ * Resolution is positional over the provided lists of chart/diagram tool calls:
+ * the agent's own tool-call history determines the mapping for each kind.
  */
-function renderChartPlaceholders(markdown: string, chartToolCalls: ToolCall[]) {
-  const parts: Array<{ kind: "md"; value: string } | { kind: "chart"; index: number }> = [];
+function renderAppPlaceholders(
+  markdown: string,
+  chartToolCalls: ToolCall[],
+  diagramToolCalls: ToolCall[]
+) {
+  const parts: Array<
+    | { kind: "md"; value: string }
+    | { kind: "chart" | "diagram"; index: number }
+  > = [];
   let lastIndex = 0;
-  CHART_PLACEHOLDER_RE.lastIndex = 0;
+  APP_PLACEHOLDER_RE.lastIndex = 0;
   let m: RegExpExecArray | null;
-  while ((m = CHART_PLACEHOLDER_RE.exec(markdown)) !== null) {
+  while ((m = APP_PLACEHOLDER_RE.exec(markdown)) !== null) {
     if (m.index > lastIndex) parts.push({ kind: "md", value: markdown.slice(lastIndex, m.index) });
-    const n = m[1] ? Number(m[1]) : 1;
-    parts.push({ kind: "chart", index: Number.isFinite(n) && n > 0 ? n - 1 : 0 });
+    const which = m[1] === "diagram" ? "diagram" : "chart";
+    const n = m[2] ? Number(m[2]) : 1;
+    parts.push({ kind: which, index: Number.isFinite(n) && n > 0 ? n - 1 : 0 });
     lastIndex = m.index + m[0].length;
   }
   if (lastIndex < markdown.length) parts.push({ kind: "md", value: markdown.slice(lastIndex) });
@@ -59,14 +69,15 @@ function renderChartPlaceholders(markdown: string, chartToolCalls: ToolCall[]) {
           if (!p.value.trim()) return <React.Fragment key={`md-${i}`} />;
           return <MarkdownContent key={`md-${i}`} content={p.value} />;
         }
-        const toolCall = chartToolCalls[p.index];
+        const source = p.kind === "diagram" ? diagramToolCalls : chartToolCalls;
+        const toolCall = source[p.index];
         if (!toolCall) {
-          const token = `[[chart${p.index > 0 ? `:${p.index + 1}` : ""}]]`;
+          const token = `[[${p.kind}${p.index > 0 ? `:${p.index + 1}` : ""}]]`;
           return <MarkdownContent key={`md-missing-${i}`} content={token} />;
         }
         return (
           <ChartAppRenderer
-            key={`chart-${toolCall.id}-${i}`}
+            key={`${p.kind}-${toolCall.id}-${i}`}
             toolCall={toolCall}
             className="my-3 w-full overflow-hidden rounded-md border border-border bg-background"
           />
@@ -82,6 +93,11 @@ function hasChartIntent(tc: ToolCall): boolean {
   const render = args?.render;
   const kind = typeof render === "string" ? render : render?.type;
   return kind === "bar" || kind === "line" || kind === "pie";
+}
+
+/** Returns true if this tool call is a `create_diagram` (Draw.io MCP App) call. */
+function hasDiagramIntent(tc: ToolCall): boolean {
+  return tc.name === "create_diagram";
 }
 
 interface ChatMessageProps {
@@ -188,19 +204,27 @@ export const ChatMessage = React.memo<ChatMessageProps>(
 
     const interruptTitle = interrupt ? getInterruptTitle(interrupt) : "";
 
-    const hasChartPlaceholders =
+    const hasAppPlaceholders =
       isAIMessage &&
       typeof aiMarkdownForDisplay === "string" &&
-      aiMarkdownForDisplay.includes("[[chart");
+      (aiMarkdownForDisplay.includes("[[chart") ||
+        aiMarkdownForDisplay.includes("[[diagram"));
 
-    // For final-answer messages whose toolCalls are empty, the chart tool
-    // calls live on earlier messages; pull from `allToolCalls` in that case.
+    // For final-answer messages whose toolCalls are empty, the chart/diagram
+    // tool calls live on earlier messages; pull from `allToolCalls` in that case.
     const chartToolCalls = useMemo(() => {
-      if (!hasChartPlaceholders) return [];
+      if (!hasAppPlaceholders) return [];
       const source =
         toolCalls.some(hasChartIntent) || !allToolCalls?.length ? toolCalls : allToolCalls;
       return source.filter(hasChartIntent);
-    }, [hasChartPlaceholders, toolCalls, allToolCalls]);
+    }, [hasAppPlaceholders, toolCalls, allToolCalls]);
+
+    const diagramToolCalls = useMemo(() => {
+      if (!hasAppPlaceholders) return [];
+      const source =
+        toolCalls.some(hasDiagramIntent) || !allToolCalls?.length ? toolCalls : allToolCalls;
+      return source.filter(hasDiagramIntent);
+    }, [hasAppPlaceholders, toolCalls, allToolCalls]);
 
     return (
       <div
@@ -260,8 +284,12 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                     </p>
                   ) : null
                 ) : hasContent ? (
-                  hasChartPlaceholders ? (
-                    renderChartPlaceholders(aiMarkdownForDisplay, chartToolCalls)
+                  hasAppPlaceholders ? (
+                    renderAppPlaceholders(
+                      aiMarkdownForDisplay,
+                      chartToolCalls,
+                      diagramToolCalls
+                    )
                   ) : (
                     <MarkdownContent content={aiMarkdownForDisplay} />
                   )

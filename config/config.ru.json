@@ -3,6 +3,22 @@
     {
       "value": "http://localhost:2024",
       "label": "Local Deployment"
+    },
+    {
+      "value": "https://deep-research-agent.moneyman.ru/",
+      "label": "[RU] Production Deployment"
+    },
+    {
+      "value": "https://deep-research-agent-test.moneyman.ru/",
+      "label": "[RU] Test Deployment"
+    },
+    {
+      "value": "https://deep-research-agent.svoi.ru/",
+      "label": "[SVOI] Production Deployment"
+    },
+    {
+      "value": "https://deep-research-agent-test.svoi.ru/",
+      "label": "[SVOI] Test Deployment"
     }
   ],
   "assistants": [
@@ -191,7 +207,7 @@
       "value": "legal_document_assistant",
       "label": "Legal Document Assistant Agent",
       "defaultModel": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-      "aiGroups": ["/MMRU/ai-group/admin", "/MMRU/ai-group/it"],
+      "aiGroups": ["/MMRU/ai-group/admin", "/MMRU/ai-group/business"],
       "models": [
         {
           "value": "litellm:openai/gpt-oss-20b",
