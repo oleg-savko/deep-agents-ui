@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Assistant } from "@langchain/langgraph-sdk";
 import { useQueryState } from "nuqs";
 import { ClientProvider } from "@/providers/ClientProvider";
@@ -12,21 +12,59 @@ import { Button } from "@/components/ui/button";
 const EMBED_DEPLOYMENT_URL =
   process.env.NEXT_PUBLIC_EMBED_DEPLOYMENT_URL || "";
 const EMBED_ASSISTANT_ID = "mt_chat";
-const EMBED_MODEL_NAME = "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit";
+
+type ConfigModel = { value: string; label: string };
+
+type ConfigAssistant = {
+  value: string;
+  defaultModel?: string;
+  models?: ConfigModel[];
+};
+
+type RuntimeConfig = { assistants?: ConfigAssistant[] };
 
 export default function EmbedPage() {
   const [_threadId, setThreadId] = useQueryState("threadId");
   const { authorization, ready } = useAuthHeader();
+  const [embedModelName, setEmbedModelName] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch("/api/config", { cache: "no-store" });
+        if (!response.ok || cancelled) return;
+        const data = (await response.json()) as RuntimeConfig;
+        const assistant = (data.assistants ?? []).find(
+          (assistant) => assistant.value === EMBED_ASSISTANT_ID
+        );
+        if (!assistant) return;
+        const modelFromList =
+          assistant.models?.find((model) => model.value.includes("gemma"))?.value ??
+          assistant.defaultModel ??
+          assistant.models?.[0]?.value;
+        if (!cancelled && modelFromList) {
+          setEmbedModelName(modelFromList);
+        }
+      } catch (error) {
+        console.error("Failed to load config:", error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const langsmithApiKey = process.env.NEXT_PUBLIC_LANGSMITH_API_KEY || "";
-  const assistant: Assistant = useMemo(() => ({
+  const assistant: Assistant = useMemo(
+    () => ({
       assistant_id: EMBED_ASSISTANT_ID,
       graph_id: EMBED_ASSISTANT_ID,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       config: {
         configurable: {
-          LLM_MODEL: EMBED_MODEL_NAME,
+          LLM_MODEL: embedModelName,
           PROJECT: undefined,
         },
       },
@@ -34,7 +72,9 @@ export default function EmbedPage() {
       version: 1,
       name: "Embed Assistant",
       context: {},
-  }), []);
+    }),
+    [embedModelName]
+  );
 
   if (ready && !authorization) {
     return (

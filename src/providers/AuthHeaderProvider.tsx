@@ -17,7 +17,7 @@ export type AuthHeaderContextValue = {
 };
 
 const AuthHeaderContext = createContext<AuthHeaderContextValue | null>(null);
-const MANAGEMENT_ORIGIN = "http://localhost:3001";
+const MANAGEMENT_ORIGIN = "*";
 
 export function AuthHeaderProvider({ children }: { children: ReactNode }) {
   const [authorization, setAuthorization] = useState<string | null>(null);
@@ -30,13 +30,11 @@ export function AuthHeaderProvider({ children }: { children: ReactNode }) {
       window.parent.postMessage({ type: "CHAT_IS_READY" }, MANAGEMENT_ORIGIN);
 
       const handleManagementResponse = (event: MessageEvent) => {
-        if (event.origin !== MANAGEMENT_ORIGIN) return;
         if (event.data?.type !== "SET_TOKEN") return;
 
         const token = event.data.token;
         if (!token || typeof token !== "string") return;
 
-        console.log("Получен токен:", token);
         setAuthorization(
           token.startsWith("Bearer ") ? token : `Bearer ${token}`
         );
