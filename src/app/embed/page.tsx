@@ -9,8 +9,9 @@ import { useAuthHeader } from "@/providers/AuthHeaderProvider";
 import { ChatInterface } from "@/app/components/ChatInterface";
 import { Button } from "@/components/ui/button";
 
-const EMBED_DEPLOYMENT_URL =
-  process.env.NEXT_PUBLIC_EMBED_DEPLOYMENT_URL || "";
+const EMBED_DEPLOYMENT_URL = 'https://deep-research-agent.svoi.ru/';
+//todo: move constants to .env config
+  /*process.env.NEXT_PUBLIC_EMBED_DEPLOYMENT_URL || "";*/
 const EMBED_ASSISTANT_ID = "mt_chat";
 
 type ConfigModel = { value: string; label: string };
