@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { Assistant } from "@langchain/langgraph-sdk";
 import { useQueryState } from "nuqs";
 import { ClientProvider } from "@/providers/ClientProvider";
@@ -23,7 +23,7 @@ type ConfigAssistant = {
 
 type RuntimeConfig = { assistants?: ConfigAssistant[] };
 
-export default function EmbedPage() {
+function EmbedPageContent() {
   const [_threadId, setThreadId] = useQueryState("threadId");
   const { authorization, ready } = useAuthHeader();
   const [embedModelName, setEmbedModelName] = useState<string | null>(null);
@@ -65,13 +65,13 @@ export default function EmbedPage() {
       config: {
         configurable: {
           LLM_MODEL: embedModelName,
-          PROJECT: undefined,
-        },
+          PROJECT: undefined
+        }
       },
       metadata: {},
       version: 1,
       name: "Embed Assistant",
-      context: {},
+      context: {}
     }),
     [embedModelName]
   );
@@ -87,35 +87,49 @@ export default function EmbedPage() {
   }
 
   return (
-    <ClientProvider
-      deploymentUrl={EMBED_DEPLOYMENT_URL}
-      apiKey={langsmithApiKey}
-    >
-      <div className="flex h-screen flex-col">
-        <div className="flex items-center justify-end border-b border-border px-4 py-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setThreadId(null)}
-          >
-            New chat
-          </Button>
+      <ClientProvider
+        deploymentUrl={EMBED_DEPLOYMENT_URL}
+        apiKey={langsmithApiKey}
+      >
+        <div className="flex h-screen flex-col">
+          <div className="flex items-center justify-end border-b border-border px-4 py-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setThreadId(null)}
+            >
+              New chat
+            </Button>
+          </div>
+          <ChatProvider activeAssistant={assistant}>
+            <ChatInterface
+              assistant={assistant}
+              debugMode={false}
+              hideInternalToggle
+              isAttachmentsAllowed={false}
+              controls={<></>}
+              skeleton={
+                <div className="flex items-center justify-center p-8">
+                  <p className="text-muted-foreground">Loading...</p>
+                </div>
+              }
+            />
+          </ChatProvider>
         </div>
-        <ChatProvider activeAssistant={assistant}>
-          <ChatInterface
-            assistant={assistant}
-            debugMode={false}
-            hideInternalToggle
-            isAttachmentsAllowed={false}
-            controls={<></>}
-            skeleton={
-              <div className="flex items-center justify-center p-8">
-                <p className="text-muted-foreground">Loading...</p>
-              </div>
-            }
-          />
-        </ChatProvider>
-      </div>
-    </ClientProvider>
+      </ClientProvider>
+  );
+}
+
+export default function EmbedPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      }
+    >
+      <EmbedPageContent />
+    </Suspense>
   );
 }
