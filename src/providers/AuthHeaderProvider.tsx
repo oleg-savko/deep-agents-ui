@@ -29,6 +29,8 @@ export function AuthHeaderProvider({ children }: { children: ReactNode }) {
     if (isInIframe) {
       window.parent.postMessage({ type: "CHAT_IS_READY" }, MANAGEMENT_ORIGIN);
 
+      setReady(true);
+
       const handleManagementResponse = (event: MessageEvent) => {
         if (event.data?.type !== "SET_TOKEN") return;
 
@@ -38,7 +40,6 @@ export function AuthHeaderProvider({ children }: { children: ReactNode }) {
         setAuthorization(
           token.startsWith("Bearer ") ? token : `Bearer ${token}`
         );
-        setReady(true);
       };
 
       window.addEventListener("message", handleManagementResponse);

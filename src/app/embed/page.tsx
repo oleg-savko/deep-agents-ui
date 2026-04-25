@@ -8,6 +8,7 @@ import { ChatProvider } from "@/providers/ChatProvider";
 import { useAuthHeader } from "@/providers/AuthHeaderProvider";
 import { ChatInterface } from "@/app/components/ChatInterface";
 import { Button } from "@/components/ui/button";
+import "@/app/embed/embed.css";
 
 const EMBED_DEPLOYMENT_URL = 'https://deep-research-agent.svoi.ru/';
 //todo: move constants to .env config
@@ -79,7 +80,7 @@ function EmbedPageContent() {
 
   if (ready && !authorization) {
     return (
-      <div className="flex h-screen items-center justify-center p-6">
+      <div className="embed-theme flex h-screen items-center justify-center p-6 text-black">
         <div className="max-w-md rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           Authorization token is required for embedded chat.
         </div>
@@ -92,11 +93,12 @@ function EmbedPageContent() {
         deploymentUrl={EMBED_DEPLOYMENT_URL}
         apiKey={langsmithApiKey}
       >
-        <div className="flex h-screen flex-col">
+        <div className="embed-theme flex h-screen flex-col text-black">
           <div className="flex items-center justify-end border-b border-border px-4 py-2">
             <Button
               variant="outline"
               size="sm"
+              className="embed-new-chat-btn"
               onClick={() => setThreadId(null)}
             >
               New chat
@@ -125,7 +127,7 @@ export default function EmbedPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex h-screen items-center justify-center">
+        <div className="embed-theme flex h-screen items-center justify-center text-black">
           <p className="text-muted-foreground">Loading...</p>
         </div>
       }

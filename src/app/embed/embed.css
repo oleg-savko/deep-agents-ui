@@ -1,0 +1,26 @@
+.embed-theme {
+    background-color: #f2f8fd;
+    color: #000000;
+
+    --color-background: #f2f8fd;
+    --background: 209 71% 97%;
+    --color-surface: #ffffff;
+    --color-user-message-bg: #ffffff;
+    --color-user-message: #000000;
+    --secondary: 0 0% 100%;
+    --muted: 0 0% 100%;
+    --accent: 0 0% 100%;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --color-text-primary: #000000;
+    --color-text-secondary: #374151;
+    --color-text-tertiary: #6b7280;
+}
+
+.embed-theme .embed-new-chat-btn:hover {
+    color: #000000;
+}
+
+.embed-theme .text-foreground {
+    color: #000000;
+}
