@@ -44,6 +44,8 @@ function validateSubagentOverridesJson(value: string): string | null {
 interface Project {
   value: string;
   label: string;
+  /** When set, only these model values are available for selection. */
+  availableModels?: string[];
 }
 
 interface Deployment {
@@ -118,7 +120,13 @@ export function ConfigDialog({
   overridesMapRef.current = overridesByAssistant;
 
   const selectedAssistant = assistants.find((a) => a.value === assistantId);
-  const availableModelsForAssistant = selectedAssistant?.models ?? [];
+  const selectedProject = projects.find((p) => p.value === project);
+  const availableModelsForAssistant = (() => {
+    const models = selectedAssistant?.models ?? [];
+    if (!selectedProject?.availableModels?.length) return models;
+    const allowed = new Set(selectedProject.availableModels);
+    return models.filter((m) => allowed.has(m.value));
+  })();
 
   useEffect(() => {
     if (open && initialConfig) {
@@ -184,13 +192,13 @@ export function ConfigDialog({
     }
   }, [open]);
 
-  // When assistant changes (or config loads), ensure current model is valid for that assistant.
-  // If invalid or empty, fall back to assistant.defaultModel (or global default).
+  // When assistant or project changes (or config loads), ensure current model is valid.
+  // If invalid or empty, fall back to assistant.defaultModel (or first in filtered list).
   useEffect(() => {
     if (!open) return;
     const a = selectedAssistant;
     if (!a) return;
-    const list = a.models ?? [];
+    const list = availableModelsForAssistant;
     if (list.length === 0) return;
 
     const has = (name: string) => list.some((m) => m.value === name);
@@ -200,7 +208,7 @@ export function ConfigDialog({
     if (next && next !== llmModelName) {
       setLlmModelName(next);
     }
-  }, [assistantId, assistants, llmModelName, open, selectedAssistant]);
+  }, [assistantId, assistants, availableModelsForAssistant, llmModelName, open, selectedAssistant]);
 
   const handleSave = () => {
     if (!deploymentUrl || !assistantId || !llmModelName) {

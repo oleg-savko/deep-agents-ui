@@ -38,8 +38,8 @@
           "label": "litellm:openai/gpt-oss-20b"
         },
         {
-          "value": "litellm:openai/Qwen3.5-9B-AWQ-4bit",
-          "label": "litellm:openai/Qwen3.5-9B-AWQ-4bit"
+          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
         },
         {
           "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
@@ -62,8 +62,8 @@
           "label": "litellm:openai/gpt-oss-20b"
         },
         {
-          "value": "litellm:openai/Qwen3.5-9B-AWQ-4bit",
-          "label": "litellm:openai/Qwen3.5-9B-AWQ-4bit"
+          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
         },
         {
           "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
@@ -86,8 +86,8 @@
           "label": "litellm:openai/gpt-oss-20b"
         },
         {
-          "value": "litellm:openai/Qwen3.5-9B-AWQ-4bit",
-          "label": "litellm:openai/Qwen3.5-9B-AWQ-4bit"
+          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
         },
         {
           "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
