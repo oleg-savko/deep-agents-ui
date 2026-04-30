@@ -10,6 +10,11 @@
       "value": "ba_research",
       "label": "BA Research Agent",
       "description": "Researches and analyzes Jira stories to create comprehensive BA specifications and requirement documents. Reviews pre-development requirements for completeness, consistency, and scope correctness.",
+      "exampleQuestions": [
+        "Analyze requirements for MMRU-1234 and create a BA specification",
+        "Review the pre-development requirements for story MMRU-5678 for completeness",
+        "Create a BA spec document for the user story about payment processing"
+      ],
       "defaultModel": "litellm:openai/gpt-5.4",
       "aiGroups": ["/MMRU/ai-group/admin"],
       "models": [
@@ -32,6 +37,11 @@
       "value": "chat",
       "label": "Chat Agent",
       "description": "Fast data analyst for ad-hoc business questions backed by ClickHouse analytics. Supports charts, data visualization, and quick data insights.",
+      "exampleQuestions": [
+        "Show me the top 10 clients by loan volume this month",
+        "What is the approval rate trend over the last 6 months?",
+        "Create a chart of daily active users for the past 30 days"
+      ],
       "defaultModel": "litellm:openai/gpt-5.4-mini",
       "aiGroups": ["/MMRU/ai-group/admin", "/MMRU/ai-group/it", "/MMRU/ai-group/business"],
       "models": [
@@ -57,6 +67,11 @@
       "value": "mt_chat",
       "label": "MT Chat Agent",
       "description": "Fast knowledge retriever for quick factual lookups and Q&A from your knowledge base.",
+      "exampleQuestions": [
+        "What is the process for loan application approval?",
+        "Find documentation about the credit scoring algorithm",
+        "What are the current KYC requirements?"
+      ],
       "defaultModel": "litellm:openai/gpt-5.4-mini",
       "aiGroups": ["/MMRU/ai-group/admin", "/MMRU/ai-group/it", "/MMRU/ai-group/business"],
       "models": [
@@ -103,6 +118,11 @@
       "value": "sd_chat",
       "label": "SD Chat Agent",
       "description": "Jira Service Management assistant for triaging, classifying, and responding to service desk tickets. Helps structure and route support requests efficiently.",
+      "exampleQuestions": [
+        "Create a service desk ticket for a VPN access request",
+        "Triage this incident: production database is returning errors",
+        "Help me draft a response to a billing complaint ticket"
+      ],
       "defaultModel": "litellm:openai/gpt-5.4-mini",
       "aiGroups": ["/MMRU/ai-group/admin", "/MMRU/ai-group/it", "/MMRU/ai-group/business"],
       "models": [
@@ -116,6 +136,11 @@
       "value": "story_chat",
       "label": "Story Chat Agent",
       "description": "Business Analysis Assistant for creating high-quality Jira user stories. Transforms stakeholder requirements into well-structured stories with acceptance criteria.",
+      "exampleQuestions": [
+        "Create a user story for adding two-factor authentication to the login flow",
+        "Write a story for the feature: users can export their transaction history as CSV",
+        "Turn this requirement into a Jira story: marketing needs a referral tracking dashboard"
+      ],
       "defaultModel": "litellm:openai/gpt-5.4-mini",
       "aiGroups": ["/MMRU/ai-group/admin", "/MMRU/ai-group/business"],
       "models": [
@@ -129,6 +154,11 @@
       "value": "qa_research",
       "label": "QA Research Agent",
       "description": "Generates complete QA packages from Jira tickets: requirements analysis, gap detection, functional checklists, manual test cases, and effort estimation.",
+      "exampleQuestions": [
+        "Generate a full QA package for MMRU-1234",
+        "Create test cases for the password reset flow in MMRU-5678",
+        "Estimate QA effort and identify requirement gaps for story MMRU-9012"
+      ],
       "defaultModel": "litellm:openai/gpt-5.4",
       "aiGroups": ["/MMRU/ai-group/admin"],
       "models": [
@@ -150,6 +180,11 @@
       "value": "codebase_qna",
       "label": "Codebase Q&A Agent (for business users)",
       "description": "Business-facing Q&A assistant for your GitLab codebase. Helps non-developers understand what features, integrations, and functionality exist in the code.",
+      "exampleQuestions": [
+        "Does our system support batch loan disbursement?",
+        "What integrations do we have with external payment providers?",
+        "How does the automatic credit limit adjustment work in the code?"
+      ],
       "defaultModel": "litellm:openai/gpt-5.4-mini",
       "aiGroups": ["/MMRU/ai-group/admin", "/MMRU/ai-group/it"],
       "models": [
@@ -163,6 +198,11 @@
       "value": "spec_research",
       "label": "Spec Research Agent",
       "description": "Technical Business Analyst for investigating Jira issues, building retrieval evidence bundles, and producing normalized requirements corpora for development teams.",
+      "exampleQuestions": [
+        "Investigate and build a requirements corpus for MMRU-1234",
+        "Retrieve all related specifications and evidence for story MMRU-5678",
+        "Produce a normalized requirements document for the authentication module"
+      ],
       "defaultModel": "litellm:openai/gpt-5.4-mini",
       "aiGroups": ["/MMRU/ai-group/admin"],
       "models": [
@@ -180,6 +220,11 @@
       "value": "meeting_summary",
       "label": "Meeting Summary Agent",
       "description": "Extracts key decisions, action items, and discussion points from meeting transcripts or notes. Produces structured summaries ready to share with stakeholders.",
+      "exampleQuestions": [
+        "Summarize this meeting transcript and extract all action items",
+        "What decisions were made in this planning session? [paste transcript]",
+        "Create a stakeholder-ready summary of this sprint retrospective"
+      ],
       "defaultModel": "litellm:openai/gpt-5.4-mini",
       "aiGroups": ["/MMRU/ai-group/admin"],
       "models": [
@@ -193,6 +238,11 @@
       "value": "mna_doc_generator",
       "label": "MNA Doc Generator Agent",
       "description": "Generates M&A documentation packages from retrieved tool inputs. Produces structured acquisition and due diligence documents from provided data sources.",
+      "exampleQuestions": [
+        "Generate an M&A due diligence package for target company XYZ",
+        "Create a term sheet document for the proposed acquisition",
+        "Produce a financial summary and risk assessment for the deal"
+      ],
       "defaultModel": "litellm:openai/gpt-5.4-mini",
       "aiGroups": ["/MMRU/ai-group/admin", "/MMRU/ai-group/it", "/MMRU/ai-group/business"],
       "models": [
@@ -206,6 +256,11 @@
       "value": "legal_document_assistant",
       "label": "Legal Document Assistant Agent",
       "description": "Drafts, reviews, and answers questions about legal documents and contracts. Helps identify key clauses, risks, and obligations in legal texts.",
+      "exampleQuestions": [
+        "Review this NDA and highlight any unusual or risky clauses",
+        "Draft a standard software services agreement for a B2B client",
+        "What are the key obligations and termination conditions in this contract?"
+      ],
       "defaultModel": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
       "aiGroups": ["/MMRU/ai-group/admin", "/MMRU/ai-group/business"],
       "models": [

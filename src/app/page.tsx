@@ -44,6 +44,9 @@ function HomePageContent() {
   const [assistantLabels, setAssistantLabels] = useState<
     Record<string, string>
   >({});
+  const [assistantExampleQuestions, setAssistantExampleQuestions] = useState<
+    Record<string, string[]>
+  >({});
 
   useEffect(() => {
     const savedConfig = getConfig();
@@ -75,12 +78,17 @@ function HomePageContent() {
           setSubagentTemplatesByAssistant(buildSubagentTemplatesByAssistantId(data));
           const descriptions: Record<string, string> = {};
           const labels: Record<string, string> = {};
+          const exampleQuestions: Record<string, string[]> = {};
           for (const a of data.assistants ?? []) {
             if (a.description) descriptions[a.value] = a.description;
             if (a.label) labels[a.value] = a.label;
+            if (Array.isArray(a.exampleQuestions) && a.exampleQuestions.length > 0) {
+              exampleQuestions[a.value] = a.exampleQuestions;
+            }
           }
           setAssistantDescriptions(descriptions);
           setAssistantLabels(labels);
+          setAssistantExampleQuestions(exampleQuestions);
         }
       } catch {
         /* ignore */
@@ -265,6 +273,7 @@ function HomePageContent() {
                     assistant={assistant}
                     debugMode={debugMode}
                     agentDescription={assistantDescriptions[config.assistantId]}
+                    exampleQuestions={assistantExampleQuestions[config.assistantId]}
                     controls={<></>}
                     skeleton={
                       <div className="flex items-center justify-center p-8">

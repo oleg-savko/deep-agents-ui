@@ -44,6 +44,10 @@
       "value": "chat",
       "label": "Chat Agent",
       "description": "Fast data analyst for ad-hoc business questions backed by ClickHouse analytics. Supports charts, data visualization, and quick data insights.",
+      "exampleQuestions": [
+        "как работает кп в confluence?",
+        "покажи формулу реструктуризации в коде репозитории gitlab?"
+      ],
       "defaultModel": "litellm:openai/gpt-5.4-mini",
       "aiGroups": ["/ai-group/admin", "/ai-group/it", "/ai-group/business"],
       "models": [
@@ -69,6 +73,9 @@
       "value": "mt_chat",
       "label": "MT Chat Agent",
       "description": "Fast knowledge retriever for quick factual lookups and Q&A from your knowledge base.",
+      "exampleQuestions": [
+        "когда зарплата?"
+      ],
       "defaultModel": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
       "aiGroups": ["/ai-group/admin", "/ai-group/it", "/ai-group/business"],
       "models": [
@@ -129,6 +136,9 @@
       "value": "qa_research",
       "label": "QA Research Agent",
       "description": "Generates complete QA packages from Jira tickets: requirements analysis, gap detection, functional checklists, manual test cases, and effort estimation.",
+      "exampleQuestions": [
+        "Для Jira <KEY>=MMRU-XXXX: собрать требования через spec-researcher (Jira links + Confluence + attachments).  Далее запустить qa-requirements-researcher. ВАЖНО: текст description для qa-requirements-researcher должен состоять РОВНО из двух частей:  byte-for-byte output spec-researcher (без каких-либо добавлений/удалений/правок), затем на новой строке ровно фраза: Сформируй итоговую QA документацию на русском языке. Запрещено добавлять любые другие слова/заголовки/ограничения/пояснения/разделители (включая “ONLY”, “START/END”, “markdown”, “не запрашивай контекст” и т.п.).  Результат qa-requirements-researcher сохранить byte-for-byte в файл: <Date>_<KEY>_QA_checklist.md."
+      ],
       "defaultModel": "litellm:openai/gpt-5.4",
       "aiGroups": ["/ai-group/admin"],
       "models": [
@@ -154,6 +164,9 @@
       "value": "codebase_qna",
       "label": "Codebase Q&A Agent (for business users)",
       "description": "Business-facing Q&A assistant for your GitLab codebase. Helps non-developers understand what features, integrations, and functionality exist in the code.",
+      "exampleQuestions": [
+        "покажи формулу реструктуризации в коде"
+      ],
       "defaultModel": "litellm:openai/gpt-5.4-mini",
       "aiGroups": ["/ai-group/admin", "/ai-group/it"],
       "models": [
@@ -192,6 +205,11 @@
       "value": "meeting_summary",
       "label": "Meeting Summary Agent",
       "description": "Extracts key decisions, action items, and discussion points from meeting transcripts or notes. Produces structured summaries ready to share with stakeholders.",
+      "exampleQuestions": [
+        "Summarize this meeting transcript and extract all action items",
+        "What decisions were made in this planning session? [paste transcript]",
+        "Create a stakeholder-ready summary of this sprint retrospective"
+      ],
       "defaultModel": "litellm:openai/gpt-5.4-mini",
       "aiGroups": ["/ai-group/admin"],
       "models": [
