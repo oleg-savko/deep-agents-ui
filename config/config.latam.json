@@ -17,6 +17,7 @@
     {
       "value": "research",
       "label": "Research Agent",
+      "description": "Orchestrates multi-step research workflows by delegating to specialized sub-agents. Synthesizes results from Confluence, Jira, and other sources into comprehensive reports.",
       "defaultModel": "litellm:openai/bedrock-nemotron-super-120b",
       "models": [
         {
@@ -53,6 +54,7 @@
     {
       "value": "chat",
       "label": "Chat Agent",
+      "description": "Fast data analyst for ad-hoc business questions backed by ClickHouse analytics. Supports charts, data visualization, and quick data insights.",
       "defaultModel": "litellm:openai/bedrock-nemotron-super-120b",
       "models": [
         {
@@ -64,6 +66,7 @@
     {
       "value": "sd_chat",
       "label": "SD Chat Agent",
+      "description": "Jira Service Management assistant for triaging, classifying, and responding to service desk tickets. Helps structure and route support requests efficiently.",
       "defaultModel": "litellm:openai/bedrock-nemotron-super-120b",
       "models": [
         {
@@ -75,6 +78,7 @@
     {
       "value": "story_chat",
       "label": "Story Chat Agent",
+      "description": "Business Analysis Assistant for creating high-quality Jira user stories. Transforms stakeholder requirements into well-structured stories with acceptance criteria.",
       "defaultModel": "litellm:openai/bedrock-nemotron-super-120b",
       "models": [
         {
@@ -86,6 +90,7 @@
     {
       "value": "qa_research",
       "label": "QA Research Agent",
+      "description": "Generates complete QA packages from Jira tickets: requirements analysis, gap detection, functional checklists, manual test cases, and effort estimation.",
       "defaultModel": "litellm:openai/bedrock-claude-sonnet-4-6",
       "models": [
         {
@@ -121,6 +126,7 @@
     {
       "value": "spec_research",
       "label": "Spec Research Agent",
+      "description": "Technical Business Analyst for investigating Jira issues, building retrieval evidence bundles, and producing normalized requirements corpora for development teams.",
       "defaultModel": "litellm:openai/bedrock-nemotron-super-120b",
       "models": [
         {

@@ -21,6 +21,7 @@
     {
       "value": "ba_research",
       "label": "BA Research Agent",
+      "description": "Researches and analyzes Jira stories to create comprehensive BA specifications and requirement documents. Reviews pre-development requirements for completeness, consistency, and scope correctness.",
       "defaultModel": "litellm:openai/gpt-5.4",
       "aiGroups": ["/ai-group/admin"],
       "models": [
@@ -42,6 +43,7 @@
     {
       "value": "chat",
       "label": "Chat Agent",
+      "description": "Fast data analyst for ad-hoc business questions backed by ClickHouse analytics. Supports charts, data visualization, and quick data insights.",
       "defaultModel": "litellm:openai/gpt-5.4-mini",
       "aiGroups": ["/ai-group/admin", "/ai-group/it", "/ai-group/business"],
       "models": [
@@ -66,6 +68,7 @@
     {
       "value": "mt_chat",
       "label": "MT Chat Agent",
+      "description": "Fast knowledge retriever for quick factual lookups and Q&A from your knowledge base.",
       "defaultModel": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
       "aiGroups": ["/ai-group/admin", "/ai-group/it", "/ai-group/business"],
       "models": [
@@ -78,6 +81,7 @@
     {
       "value": "pure_local_chat",
       "label": "Pure Local Chat Agent",
+      "description": "Local-only chat with no external data retrieval. Use for privacy-sensitive conversations or offline reasoning without any knowledge base access.",
       "defaultModel": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
       "aiGroups": ["/ai-group/admin"],
       "models": [
@@ -98,6 +102,7 @@
     {
       "value": "sd_chat",
       "label": "SD Chat Agent",
+      "description": "Jira Service Management assistant for triaging, classifying, and responding to service desk tickets. Helps structure and route support requests efficiently.",
       "defaultModel": "litellm:openai/gpt-5.4-mini",
       "aiGroups": ["/ai-group/admin"],
       "models": [
@@ -110,6 +115,7 @@
     {
       "value": "story_chat",
       "label": "Story Chat Agent",
+      "description": "Business Analysis Assistant for creating high-quality Jira user stories. Transforms stakeholder requirements into well-structured stories with acceptance criteria.",
       "defaultModel": "litellm:openai/gpt-5.4-mini",
       "aiGroups": ["/ai-group/admin", "/ai-group/business"],
       "models": [
@@ -122,9 +128,14 @@
     {
       "value": "qa_research",
       "label": "QA Research Agent",
+      "description": "Generates complete QA packages from Jira tickets: requirements analysis, gap detection, functional checklists, manual test cases, and effort estimation.",
       "defaultModel": "litellm:openai/gpt-5.4",
       "aiGroups": ["/ai-group/admin"],
       "models": [
+        {
+          "value": "litellm:openai/gpt-5.5",
+          "label": "litellm:openai/gpt-5.5"
+        },
         {
           "value": "litellm:openai/gpt-5.4",
           "label": "litellm:openai/gpt-5.4"
@@ -142,6 +153,7 @@
     {
       "value": "codebase_qna",
       "label": "Codebase Q&A Agent (for business users)",
+      "description": "Business-facing Q&A assistant for your GitLab codebase. Helps non-developers understand what features, integrations, and functionality exist in the code.",
       "defaultModel": "litellm:openai/gpt-5.4-mini",
       "aiGroups": ["/ai-group/admin", "/ai-group/it"],
       "models": [
@@ -162,6 +174,7 @@
     {
       "value": "spec_research",
       "label": "Spec Research Agent",
+      "description": "Technical Business Analyst for investigating Jira issues, building retrieval evidence bundles, and producing normalized requirements corpora for development teams.",
       "defaultModel": "litellm:openai/gpt-5.4-mini",
       "aiGroups": ["/ai-group/admin", "/ai-group/it"],
       "models": [
@@ -178,6 +191,7 @@
     {
       "value": "meeting_summary",
       "label": "Meeting Summary Agent",
+      "description": "Extracts key decisions, action items, and discussion points from meeting transcripts or notes. Produces structured summaries ready to share with stakeholders.",
       "defaultModel": "litellm:openai/gpt-5.4-mini",
       "aiGroups": ["/ai-group/admin"],
       "models": [
@@ -190,6 +204,7 @@
     {
       "value": "mna_doc_generator",
       "label": "MNA Doc Generator Agent",
+      "description": "Generates M&A documentation packages from retrieved tool inputs. Produces structured acquisition and due diligence documents from provided data sources.",
       "defaultModel": "litellm:openai/gpt-5.4-mini",
       "aiGroups": ["/ai-group/admin", "/ai-group/it", "/ai-group/business"],
       "models": [
@@ -202,6 +217,7 @@
     {
       "value": "legal_document_assistant",
       "label": "Legal Document Assistant Agent",
+      "description": "Drafts, reviews, and answers questions about legal documents and contracts. Helps identify key clauses, risks, and obligations in legal texts.",
       "defaultModel": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
       "aiGroups": ["/ai-group/admin", "/ai-group/business"],
       "models": [
@@ -223,7 +239,12 @@
     },
     {
       "value": "SB",
-      "label": "SB"
+      "label": "SB",
+      "availableModels": [
+        "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+        "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
+        "litellm:openai/gpt-oss-20b"
+      ]
     },
     {
       "value": "IDC",

@@ -11,7 +11,12 @@ import { ConfigDialog } from "@/app/components/ConfigDialog";
 import { Button } from "@/components/ui/button";
 import { Assistant } from "@langchain/langgraph-sdk";
 import { ClientProvider } from "@/providers/ClientProvider";
-import { Settings, MessagesSquare, SquarePen } from "lucide-react";
+import { Settings, MessagesSquare, SquarePen, Info } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -32,6 +37,12 @@ function HomePageContent() {
   const [interruptCount, setInterruptCount] = useState(0);
   const [subagentTemplatesByAssistant, setSubagentTemplatesByAssistant] = useState<
     Record<string, Record<string, string>>
+  >({});
+  const [assistantDescriptions, setAssistantDescriptions] = useState<
+    Record<string, string>
+  >({});
+  const [assistantLabels, setAssistantLabels] = useState<
+    Record<string, string>
   >({});
 
   useEffect(() => {
@@ -62,6 +73,14 @@ function HomePageContent() {
         const data = await response.json();
         if (!cancelled) {
           setSubagentTemplatesByAssistant(buildSubagentTemplatesByAssistantId(data));
+          const descriptions: Record<string, string> = {};
+          const labels: Record<string, string> = {};
+          for (const a of data.assistants ?? []) {
+            if (a.description) descriptions[a.value] = a.description;
+            if (a.label) labels[a.value] = a.label;
+          }
+          setAssistantDescriptions(descriptions);
+          setAssistantLabels(labels);
         }
       } catch {
         /* ignore */
@@ -136,7 +155,7 @@ function HomePageContent() {
     },
     metadata: {},
     version: 1,
-    name: "Default Assistant",
+    name: assistantLabels[config.assistantId] ?? config.assistantId,
     context: {},
   };
 
@@ -171,9 +190,19 @@ function HomePageContent() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <div className="text-sm text-muted-foreground">
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <span className="font-medium">Assistant:</span>{" "}
                 {config.assistantId}
+                {assistantDescriptions[config.assistantId] && (
+                  <Tooltip delayDuration={200}>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 cursor-help text-muted-foreground/60 hover:text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-xs">
+                      {assistantDescriptions[config.assistantId]}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
               </div>
               <Button
                 variant="outline"
@@ -235,6 +264,7 @@ function HomePageContent() {
                   <ChatInterface
                     assistant={assistant}
                     debugMode={debugMode}
+                    agentDescription={assistantDescriptions[config.assistantId]}
                     controls={<></>}
                     skeleton={
                       <div className="flex items-center justify-center p-8">

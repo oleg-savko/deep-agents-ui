@@ -44,6 +44,7 @@ import { FilesPopover } from "@/app/components/TasksFilesSidebar";
 interface ChatInterfaceProps {
   assistant: Assistant | null;
   debugMode: boolean;
+  agentDescription?: string;
   // Optional controlled view props from host app
   view?: "chat" | "workflow";
   onViewChange?: (view: "chat" | "workflow") => void;
@@ -168,6 +169,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
   ({
     assistant,
     debugMode,
+    agentDescription,
     view,
     onViewChange,
     onInput,
@@ -845,6 +847,20 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
               skeleton
             ) : (
               <>
+                {processedMessages.length === 0 && (agentDescription ?? assistant?.name) && (
+                  <div className="pointer-events-none flex min-h-[50vh] items-center justify-center px-6">
+                    <div className="max-w-md text-center opacity-40">
+                      <p className="text-lg font-semibold text-muted-foreground">
+                        {assistant?.name ?? assistant?.assistant_id}
+                      </p>
+                      {agentDescription && (
+                        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                          {agentDescription}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {(() => {
                   // Aggregate tool calls once per render so ChatMessage can
                   // resolve `[[chart]]` placeholders in final-answer messages

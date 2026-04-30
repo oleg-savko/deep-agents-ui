@@ -21,6 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import * as SelectPrimitive from "@radix-ui/react-select";
+import { Check } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { StandaloneConfig } from "@/lib/config";
 import { buildSubagentTemplatesByAssistantId } from "@/lib/subagentTemplates";
@@ -61,6 +63,8 @@ interface LLMModel {
 interface Assistant {
   value: string;
   label: string;
+  /** Short description of what this agent does. */
+  description?: string;
   /** Available models for this assistant (from config.json). */
   models?: LLMModel[];
   /** Default model to preselect for this assistant (from config.json). */
@@ -310,12 +314,35 @@ export function ConfigDialog({
                     ? [{ value: assistantId, label: assistantId }]
                     : []),
                 ].map((assistant) => (
-                  <SelectItem key={assistant.value} value={assistant.value}>
-                    {assistant.label}
-                  </SelectItem>
+                  <SelectPrimitive.Item
+                    key={assistant.value}
+                    value={assistant.value}
+                    className="relative flex w-full cursor-default select-none flex-col items-start rounded-sm py-1.5 pl-2 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                  >
+                    <div className="flex w-full items-center gap-2">
+                      <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                        <SelectPrimitive.ItemIndicator>
+                          <Check className="h-4 w-4" />
+                        </SelectPrimitive.ItemIndicator>
+                      </span>
+                      <SelectPrimitive.ItemText>
+                        {assistant.label}
+                      </SelectPrimitive.ItemText>
+                    </div>
+                    {"description" in assistant && assistant.description && (
+                      <span className="mt-0.5 text-xs text-muted-foreground whitespace-normal leading-snug">
+                        {assistant.description}
+                      </span>
+                    )}
+                  </SelectPrimitive.Item>
                 ))}
               </SelectContent>
             </Select>
+            {selectedAssistant?.description && (
+              <p className="text-xs text-muted-foreground leading-snug">
+                {selectedAssistant.description}
+              </p>
+            )}
           </div>
           <div className="grid gap-2">
             <Label htmlFor="project">
