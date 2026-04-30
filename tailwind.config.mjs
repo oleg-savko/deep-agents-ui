@@ -1,4 +1,3 @@
-import { blackA, green, mauve, slate, violet } from "@radix-ui/colors";
 import plugin from "tailwindcss/plugin";
 import containerQueries from "@tailwindcss/container-queries";
 import typography from "@tailwindcss/typography";
@@ -9,7 +8,7 @@ import headlessui from "@headlessui/tailwindcss";
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
-  darkMode: ["class", '[data-joy-color-scheme="dark"]'],
+  darkMode: ["class", '[data-theme="dark"]'],
   theme: {
     extend: {
       fontSize: {

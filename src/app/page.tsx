@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Assistant } from "@langchain/langgraph-sdk";
 import { ClientProvider } from "@/providers/ClientProvider";
 import { Settings, MessagesSquare, SquarePen } from "lucide-react";
+import { ThemeToggle } from "@/app/components/ThemeToggle";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -175,6 +176,7 @@ function HomePageContent() {
                 <span className="font-medium">Assistant:</span>{" "}
                 {config.assistantId}
               </div>
+              <ThemeToggle />
               <Button
                 variant="outline"
                 size="sm"

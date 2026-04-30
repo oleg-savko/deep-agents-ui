@@ -60,6 +60,16 @@ interface ChatInterfaceProps {
 
 const MAX_FILE_SIZE_DEFAULT = 10 * 1024 * 1024; // 10 MB
 const MAX_FILE_SIZE_LARGE = 1024 * 1024 * 1024; // 1 GB for audio/video/doc uploads
+const ACCEPTED_FILE_TYPES = [
+  "image/*",
+  ".pdf", ".doc", ".docx", ".xlsx", ".xls",
+  ".txt", ".md", ".csv", ".json", ".yaml", ".yml", ".xml",
+  ".html", ".css", ".js", ".jsx", ".ts", ".tsx",
+  ".py", ".rb", ".go", ".rs", ".java", ".c", ".cpp", ".h",
+  ".sh", ".bash", ".sql", ".toml", ".ini", ".cfg", ".env", ".log", ".svg",
+  ".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac",
+  ".mp4", ".m4v", ".mov", ".avi", ".mkv",
+].join(",");
 
 function readFileAsAttachment(file: File): Promise<Attachment> {
   return new Promise((resolve, reject) => {
@@ -184,6 +194,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     const [metaOpen, setMetaOpen] = useState<"tasks" | "files" | null>(null);
     const tasksContainerRef = useRef<HTMLDivElement | null>(null);
     const [isWorkflowView, setIsWorkflowView] = useState(false);
+    const isMountedRef = useRef(true);
 
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -196,6 +207,13 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     const workflowView = isControlledView
       ? view === "workflow"
       : isWorkflowView;
+
+    useEffect(() => {
+      isMountedRef.current = true;
+      return () => {
+        isMountedRef.current = false;
+      };
+    }, []);
 
     useEffect(() => {
       const timeout = setTimeout(() => void textareaRef.current?.focus());
@@ -289,6 +307,10 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
             },
           }))
         );
+
+        if (!isMountedRef.current) {
+          return;
+        }
 
         setAttachments((prev) => {
           const byTempId = new Map(
@@ -416,7 +438,8 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       return () => window.removeEventListener("mcp-ui-save-file", onSave);
     }, [files, setFiles]);
 
-    const submitDisabled = isLoading || !assistant;
+    const isUploadingAttachments = loadingAttachmentIds.size > 0;
+    const submitDisabled = isLoading || isUploadingAttachments || !assistant;
     const hasAttachments = attachments.length > 0;
 
     const handleSubmit = useCallback(
@@ -1163,22 +1186,13 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="
-                  image/*,
-                  .pdf,.doc,.docx,.xlsx,.xls,
-                  .txt,.md,.csv,.json,.yaml,.yml,.xml,
-                  .html,.css,.js,.jsx,.ts,.tsx,
-                  .py,.rb,.go,.rs,.java,.c,.cpp,.h,
-                  .sh,.bash,.sql,.toml,.ini,.cfg,.env,.log,.svg,
-                  .wav,.mp3,.m4a,.aac,.ogg,.flac,
-                  .mp4,.m4v,.mov,.avi,.mkv
-                "
+                  accept={ACCEPTED_FILE_TYPES}
                   multiple
                   className="hidden"
                   onChange={handleFileInputChange}
                 />
               )}
-              {isDragOver && (
+              {isAttachmentsAllowed && isDragOver && (
                 <div className="border-primary/30 bg-primary/5 text-primary/60 flex items-center justify-center border-b border-dashed px-[18px] py-4 text-sm">
                   Drop files here to attach
                 </div>
@@ -1273,7 +1287,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                 <div className="flex justify-end gap-2">
                   <Button
                     type={isLoading ? "button" : "submit"}
-                    variant={isLoading ? "destructive" : "default"}
+                    variant={isLoading ? "destructive" : "outline"}
                     onClick={isLoading ? stopStream : handleSubmit}
                     disabled={
                       !isLoading &&

@@ -6,6 +6,23 @@ import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
 
+const themeInitScript = `
+(function () {
+  try {
+    var storedTheme = localStorage.getItem("theme");
+    var systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+      
+    var theme = (storedTheme === "light") || (storedTheme === "dark") ? storedTheme : systemTheme;
+    
+    document.documentElement.dataset.theme = theme;
+  } catch (e) {
+    document.documentElement.dataset.theme = "dark";
+  }
+})();
+`;
+
 export default function RootLayout({
   children,
 }: {
@@ -20,6 +37,7 @@ export default function RootLayout({
         className={inter.className}
         suppressHydrationWarning
       >
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <NuqsAdapter>
           <AuthHeaderProvider>{children}</AuthHeaderProvider>
         </NuqsAdapter>

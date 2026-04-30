@@ -459,7 +459,12 @@ export function ConfigDialog({
           >
             Cancel
           </Button>
-          <Button onClick={handleSave}>Save</Button>
+          <Button
+            variant="outline"
+            onClick={handleSave}
+          >
+            Save
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

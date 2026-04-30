@@ -16,43 +16,6 @@
   }
 
   :root {
-    /* App-specific color variables */
-    --color-primary: #1c3c3c;
-    --color-user-message: #076699;
-    --color-user-message-bg: #e8f4f8;
-    --color-avatar-bg: #e8ebeb;
-    --color-secondary: #1c3c3c;
-    --color-success: #10b981;
-    --color-warning: #f59e0b;
-    --color-error: #ef4444;
-    --color-background: #f9f9f9;
-    --color-subagent-hover: #bbc4c4;
-    --color-surface: #f9fafb;
-    --color-border: #e5e7eb;
-    --color-border-light: #f3f4f6;
-    --color-text-primary: #111827;
-    --color-text-secondary: #6b7280;
-    --color-text-tertiary: #9ca3af;
-    --color-file-button: #ffffff;
-    --color-file-button-hover: #e5e7eb;
-
-    /* Dark theme colors */
-    --color-primary-dark: #2dd4bf;
-    --color-user-message-dark: #076699;
-    --color-avatar-bg-dark: #bcb2fd;
-    --color-secondary-dark: #2dd4bf;
-    --color-success-dark: #34d399;
-    --color-warning-dark: #fbbf24;
-    --color-error-dark: #f87171;
-    --color-background-dark: #0f0f0f;
-    --color-subagent-hover-dark: #d0c9fe;
-    --color-surface-dark: #1a1a1a;
-    --color-border-dark: #2d2d2d;
-    --color-border-light-dark: #232323;
-    --color-text-primary-dark: #f3f4f6;
-    --color-text-secondary-dark: #9ca3af;
-    --color-text-tertiary-dark: #6b7280;
-
     /* Spacing variables */
     --spacing-xs: 0.25rem;
     --spacing-sm: 0.5rem;
@@ -109,26 +72,56 @@
 
     /* Tailwind/Radix UI component variables */
     --radius: 0.5rem;
-    --background: 0 0% 98%;
-    --foreground: 220 13% 13%;
+  }
+
+  /*
+    Theme variables: the active theme is selected by `data-theme`
+    on the root element (html). This makes theme switching deterministic
+    and keeps Tailwind `dark:` variants in sync.
+  */
+
+  :root[data-theme="light"] {
+    /* App-specific color variables (light theme) */
+    --color-primary: #1c3c3c;
+    --color-user-message: #000000;
+    --color-user-message-bg: #ffffff;
+    --color-avatar-bg: #e8ebeb;
+    --color-secondary: #1c3c3c;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
+    --color-background: #f2f8fd;
+    --color-subagent-hover: #bbc4c4;
+    --color-surface: #ffffff;
+    --color-border: #e5e7eb;
+    --color-border-light: #f3f4f6;
+    --color-text-primary: #000000;
+    --color-text-secondary: #374151;
+    --color-text-tertiary: #6b7280;
+    --color-file-button: #ffffff;
+    --color-file-button-hover: #e5e7eb;
+
+    /* Tailwind/Radix UI component variables for light mode */
+    --background: 209 71% 97%;
+    --foreground: 0 0% 0%;
     --card: 0 0% 100%;
-    --card-foreground: 220 13% 13%;
+    --card-foreground: 0 0% 0%;
     --popover: 0 0% 100%;
-    --popover-foreground: 220 13% 13%;
+    --popover-foreground: 0 0% 0%;
     --primary: 180 35% 17%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 13% 91%;
-    --secondary-foreground: 220 13% 13%;
-    --muted: 220 13% 95%;
-    --muted-foreground: 220 9% 46%;
-    --accent: 220 13% 95%;
-    --accent-foreground: 220 13% 13%;
+    --secondary: 0 0% 100%;
+    --secondary-foreground: 0 0% 0%;
+    --muted: 0 0% 100%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 92%;
+    --accent-foreground: 0 0% 0%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
     --ring: 180 35% 17%;
-    --sidebar: 220 13% 95%;
+    --sidebar: 0 0% 100%;
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
@@ -136,56 +129,53 @@
     --chart-5: 27 87% 67%;
   }
 
-  @media (prefers-color-scheme: dark) {
-    :root {
-      /* App-specific color variables */
-      --color-primary: #1c3c3c;
-      --color-user-message: #065a8a;
-      --color-user-message-bg: #2d2d2d;
-      --color-avatar-bg: #1c3c3c;
-      --color-secondary: #bbc4c4;
-      --color-success: #34d399;
-      --color-warning: #fbbf24;
-      --color-error: #f87171;
-      --color-background: #202020;
-      --color-subagent-hover: #1e3f3f;
-      --color-surface: #2a2a2a;
-      --color-border: #404040;
-      --color-border-light: #353535;
-      --color-text-primary: #f3f4f6;
-      --color-text-secondary: #9ca3af;
-      --color-text-tertiary: #6b7280;
-      --color-file-button: #2a2a2a;
-      --color-file-button-hover: #353535;
+  :root[data-theme="dark"] {
+    /* App-specific color variables */
+    --color-primary: #1c3c3c;
+    --color-user-message: #065a8a;
+    --color-user-message-bg: #2d2d2d;
+    --color-avatar-bg: #1c3c3c;
+    --color-secondary: #bbc4c4;
+    --color-success: #34d399;
+    --color-warning: #fbbf24;
+    --color-error: #f87171;
+    --color-background: #202020;
+    --color-subagent-hover: #1e3f3f;
+    --color-surface: #2a2a2a;
+    --color-border: #404040;
+    --color-border-light: #353535;
+    --color-text-primary: #f3f4f6;
+    --color-text-secondary: #9ca3af;
+    --color-text-tertiary: #6b7280;
+    --color-file-button: #2a2a2a;
+    --color-file-button-hover: #353535;
 
-      /* Tailwind/Radix UI component variables for dark mode */
-      --radius: 0.5rem;
-      --background: 0 0% 13%;
-      --foreground: 220 13% 95%;
-      --card: 0 0% 18%;
-      --card-foreground: 220 13% 95%;
-      --popover: 0 0% 18%;
-      --popover-foreground: 220 13% 95%;
-      --primary: 174 72% 56%;
-      --primary-foreground: 0 0% 13%;
-      --secondary: 0 0% 25%;
-      --secondary-foreground: 220 13% 95%;
-      --muted: 0 0% 22%;
-      --muted-foreground: 220 9% 70%;
-      --accent: 0 0% 22%;
-      --accent-foreground: 220 13% 95%;
-      --destructive: 0 63% 71%;
-      --destructive-foreground: 0 0% 13%;
-      --border: 0 0% 28%;
-      --input: 0 0% 28%;
-      --ring: 174 72% 56%;
-      --sidebar: 0 0% 18%;
-      --chart-1: 220 70% 50%;
-      --chart-2: 160 60% 45%;
-      --chart-3: 30 80% 55%;
-      --chart-4: 280 65% 60%;
-      --chart-5: 340 75% 55%;
-    }
+    /* Tailwind/Radix UI component variables for dark mode */
+    --background: 0 0% 13%;
+    --foreground: 220 13% 95%;
+    --card: 0 0% 18%;
+    --card-foreground: 220 13% 95%;
+    --popover: 0 0% 18%;
+    --popover-foreground: 220 13% 95%;
+    --primary: 174 72% 56%;
+    --primary-foreground: 0 0% 13%;
+    --secondary: 0 0% 25%;
+    --secondary-foreground: 220 13% 95%;
+    --muted: 0 0% 22%;
+    --muted-foreground: 220 9% 70%;
+    --accent: 0 0% 22%;
+    --accent-foreground: 220 13% 95%;
+    --destructive: 0 63% 71%;
+    --destructive-foreground: 0 0% 13%;
+    --border: 0 0% 28%;
+    --input: 0 0% 28%;
+    --ring: 174 72% 56%;
+    --sidebar: 0 0% 18%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
   }
 }
 
