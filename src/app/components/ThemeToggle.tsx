@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -17,7 +17,7 @@ export function ThemeToggle() {
     return readThemeFromDom();
   });
 
-  const toggleTheme = useCallback(() => {
+  const toggleTheme = () => {
     const currentTheme = readThemeFromDom();
     const nextTheme: Theme = (currentTheme === "dark") ? "light" : "dark";
     document.documentElement.dataset.theme = nextTheme;
@@ -27,7 +27,7 @@ export function ThemeToggle() {
       // ignore
     }
     setTheme(nextTheme);
-  }, [theme]);
+  };
 
   const isDark = theme === "dark";
   const Icon = isDark ? Moon : Sun;

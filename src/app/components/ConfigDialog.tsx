@@ -10,7 +10,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -19,8 +19,10 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
 } from "@/components/ui/select";
+import * as SelectPrimitive from "@radix-ui/react-select";
+import { Check } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { StandaloneConfig } from "@/lib/config";
 import { buildSubagentTemplatesByAssistantId } from "@/lib/subagentTemplates";
@@ -33,7 +35,7 @@ function validateSubagentOverridesJson(value: string): string | null {
   try {
     const parsed = JSON.parse(value);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return "Value must be a JSON object (e.g. {\"subagent-name\": \"model-id\"}).";
+      return 'Value must be a JSON object (e.g. {"subagent-name": "model-id"}).';
     }
     return null;
   } catch {
@@ -44,6 +46,8 @@ function validateSubagentOverridesJson(value: string): string | null {
 interface Project {
   value: string;
   label: string;
+  /** When set, only these model values are available for selection. */
+  availableModels?: string[];
 }
 
 interface Deployment {
@@ -59,6 +63,8 @@ interface LLMModel {
 interface Assistant {
   value: string;
   label: string;
+  /** Short description of what this agent does. */
+  description?: string;
   /** Available models for this assistant (from config.json). */
   models?: LLMModel[];
   /** Default model to preselect for this assistant (from config.json). */
@@ -80,7 +86,7 @@ export function ConfigDialog({
   open,
   onOpenChange,
   onSave,
-  initialConfig
+  initialConfig,
 }: ConfigDialogProps) {
   const DEFAULT_LLM_MODEL_NAME = "litellm:openai/gpt-5-mini";
 
@@ -93,10 +99,13 @@ export function ConfigDialog({
   const [llmModelName, setLlmModelName] = useState(
     initialConfig?.llmModelName || DEFAULT_LLM_MODEL_NAME
   );
-  const [project, setProject] = useState(initialConfig?.project || "");
+  const [project, setProject] = useState(
+    initialConfig?.project || ""
+  );
   const [subagentModelOverrides, setSubagentModelOverrides] = useState("");
-  const [subagentModelOverridesError, setSubagentModelOverridesError] =
-    useState<string | null>(null);
+  const [subagentModelOverridesError, setSubagentModelOverridesError] = useState<
+    string | null
+  >(null);
   const [overridesByAssistant, setOverridesByAssistant] = useState<
     Record<string, string>
   >({});
@@ -106,7 +115,7 @@ export function ConfigDialog({
   const [projects, setProjects] = useState<Project[]>([]);
   const [assistants, setAssistants] = useState<Assistant[]>([]);
   const [showInternalSteps, setShowInternalSteps] = useState(
-    initialConfig?.showInternalSteps ?? false
+    initialConfig?.showInternalSteps ?? false,
   );
 
   const assistantIdRef = useRef(assistantId);
@@ -115,7 +124,13 @@ export function ConfigDialog({
   overridesMapRef.current = overridesByAssistant;
 
   const selectedAssistant = assistants.find((a) => a.value === assistantId);
-  const availableModelsForAssistant = selectedAssistant?.models ?? [];
+  const selectedProject = projects.find((p) => p.value === project);
+  const availableModelsForAssistant = (() => {
+    const models = selectedAssistant?.models ?? [];
+    if (!selectedProject?.availableModels?.length) return models;
+    const allowed = new Set(selectedProject.availableModels);
+    return models.filter((m) => allowed.has(m.value));
+  })();
 
   useEffect(() => {
     if (open && initialConfig) {
@@ -124,13 +139,13 @@ export function ConfigDialog({
       setLlmModelName(initialConfig.llmModelName || DEFAULT_LLM_MODEL_NAME);
       setProject(initialConfig.project || "");
       setShowInternalSteps(initialConfig.showInternalSteps ?? false);
-      const map = {
-        ...(initialConfig.subagentModelOverridesByAssistant ?? {})
-      };
+      const map = { ...(initialConfig.subagentModelOverridesByAssistant ?? {}) };
       const id = initialConfig.assistantId;
       setOverridesByAssistant(map);
       const editor =
-        map[id] !== undefined ? map[id]! : JSON.stringify({}, null, 2);
+        map[id] !== undefined
+          ? map[id]!
+          : JSON.stringify({}, null, 2);
       setSubagentModelOverrides(editor);
       setSubagentModelOverridesError(null);
     }
@@ -168,7 +183,7 @@ export function ConfigDialog({
           setProjects(data.projects || []);
           setAssistants(data.assistants || []);
           setSubagentModelOverrideTemplates(
-            buildSubagentTemplatesByAssistantId(data)
+            buildSubagentTemplatesByAssistantId(data),
           );
         }
       } catch (error) {
@@ -181,13 +196,13 @@ export function ConfigDialog({
     }
   }, [open]);
 
-  // When assistant changes (or config loads), ensure current model is valid for that assistant.
-  // If invalid or empty, fall back to assistant.defaultModel (or global default).
+  // When assistant or project changes (or config loads), ensure current model is valid.
+  // If invalid or empty, fall back to assistant.defaultModel (or first in filtered list).
   useEffect(() => {
     if (!open) return;
     const a = selectedAssistant;
     if (!a) return;
-    const list = a.models ?? [];
+    const list = availableModelsForAssistant;
     if (list.length === 0) return;
 
     const has = (name: string) => list.some((m) => m.value === name);
@@ -197,7 +212,7 @@ export function ConfigDialog({
     if (next && next !== llmModelName) {
       setLlmModelName(next);
     }
-  }, [assistantId, assistants, llmModelName, open, selectedAssistant]);
+  }, [assistantId, assistants, availableModelsForAssistant, llmModelName, open, selectedAssistant]);
 
   const handleSave = () => {
     if (!deploymentUrl || !assistantId || !llmModelName) {
@@ -212,7 +227,7 @@ export function ConfigDialog({
 
     const mergedOverrides = {
       ...overridesByAssistant,
-      [assistantId]: subagentModelOverrides
+      [assistantId]: subagentModelOverrides,
     };
     onSave({
       ...(initialConfig ?? {}),
@@ -221,7 +236,7 @@ export function ConfigDialog({
       llmModelName,
       project: project || undefined,
       showInternalSteps,
-      subagentModelOverridesByAssistant: mergedOverrides
+      subagentModelOverridesByAssistant: mergedOverrides,
     });
     onOpenChange(false);
   };
@@ -253,16 +268,11 @@ export function ConfigDialog({
                 {[
                   ...deployments,
                   ...(deploymentUrl &&
-                  !deployments.some(
-                    (deployment) => deployment.value === deploymentUrl
-                  )
+                  !deployments.some((deployment) => deployment.value === deploymentUrl)
                     ? [{ value: deploymentUrl, label: deploymentUrl }]
-                    : [])
+                    : []),
                 ].map((deployment) => (
-                  <SelectItem
-                    key={deployment.value}
-                    value={deployment.value}
-                  >
+                  <SelectItem key={deployment.value} value={deployment.value}>
                     {deployment.label}
                   </SelectItem>
                 ))}
@@ -276,20 +286,20 @@ export function ConfigDialog({
               onValueChange={(newAssistantId) => {
                 const next = {
                   ...overridesByAssistant,
-                  [assistantId]: subagentModelOverrides
+                  [assistantId]: subagentModelOverrides,
                 };
                 setOverridesByAssistant(next);
                 const editor =
                   next[newAssistantId] !== undefined
                     ? next[newAssistantId]!
                     : JSON.stringify(
-                      subagentModelOverrideTemplates[newAssistantId] ?? {},
-                      null,
-                      2
-                    );
+                        subagentModelOverrideTemplates[newAssistantId] ?? {},
+                        null,
+                        2,
+                      );
                 setSubagentModelOverrides(editor);
                 setSubagentModelOverridesError(
-                  validateSubagentOverridesJson(editor)
+                  validateSubagentOverridesJson(editor),
                 );
                 setAssistantId(newAssistantId);
               }}
@@ -300,24 +310,44 @@ export function ConfigDialog({
               <SelectContent>
                 {[
                   ...assistants,
-                  ...(assistantId &&
-                  !assistants.some((a) => a.value === assistantId)
+                  ...(assistantId && !assistants.some((a) => a.value === assistantId)
                     ? [{ value: assistantId, label: assistantId }]
-                    : [])
+                    : []),
                 ].map((assistant) => (
-                  <SelectItem
+                  <SelectPrimitive.Item
                     key={assistant.value}
                     value={assistant.value}
+                    className="relative flex w-full cursor-default select-none flex-col items-start rounded-sm py-1.5 pl-2 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
                   >
-                    {assistant.label}
-                  </SelectItem>
+                    <div className="flex w-full items-center gap-2">
+                      <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                        <SelectPrimitive.ItemIndicator>
+                          <Check className="h-4 w-4" />
+                        </SelectPrimitive.ItemIndicator>
+                      </span>
+                      <SelectPrimitive.ItemText>
+                        {assistant.label}
+                      </SelectPrimitive.ItemText>
+                    </div>
+                    {"description" in assistant && assistant.description && (
+                      <span className="mt-0.5 text-xs text-muted-foreground whitespace-normal leading-snug">
+                        {assistant.description}
+                      </span>
+                    )}
+                  </SelectPrimitive.Item>
                 ))}
               </SelectContent>
             </Select>
+            {selectedAssistant?.description && (
+              <p className="text-xs text-muted-foreground leading-snug">
+                {selectedAssistant.description}
+              </p>
+            )}
           </div>
           <div className="grid gap-2">
             <Label htmlFor="project">
-              Project <span className="text-muted-foreground">(Optional)</span>
+              Project{" "}
+              <span className="text-muted-foreground">(Optional)</span>
             </Label>
             <Select
               value={project}
@@ -328,10 +358,7 @@ export function ConfigDialog({
               </SelectTrigger>
               <SelectContent>
                 {projects.map((proj) => (
-                  <SelectItem
-                    key={proj.value}
-                    value={proj.value}
-                  >
+                  <SelectItem key={proj.value} value={proj.value}>
                     {proj.label}
                   </SelectItem>
                 ))}
@@ -353,7 +380,7 @@ export function ConfigDialog({
                   ...(llmModelName &&
                   !availableModelsForAssistant.some((m) => m.value === llmModelName)
                     ? [{ value: llmModelName, label: llmModelName }]
-                    : [])
+                    : []),
                 ].map((model) => (
                   <SelectItem key={model.value} value={model.value}>
                     {model.label}
@@ -364,9 +391,7 @@ export function ConfigDialog({
           </div>
           <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
             <div className="space-y-0.5">
-              <Label htmlFor="showInternalSteps">
-                Display internal LLM steps
-              </Label>
+              <Label htmlFor="showInternalSteps">Display internal LLM steps</Label>
               <p className="text-xs text-muted-foreground">
                 Show intermediate agent and tool steps in the conversation.
               </p>
@@ -388,22 +413,24 @@ export function ConfigDialog({
                 variant="outline"
                 size="sm"
                 disabled={
-                  Object.keys(subagentModelOverrideTemplates[assistantId] ?? {})
-                    .length === 0
+                  Object.keys(
+                    subagentModelOverrideTemplates[assistantId] ?? {},
+                  ).length === 0
                 }
                 title={
-                  Object.keys(subagentModelOverrideTemplates[assistantId] ?? {})
-                    .length === 0
+                  Object.keys(
+                    subagentModelOverrideTemplates[assistantId] ?? {},
+                  ).length === 0
                     ? "Add subagentModelOverrideTemplates for this assistant in config.json"
                     : undefined
                 }
                 onClick={() => {
                   const model = llmModelName;
                   const tmplKeys = Object.keys(
-                    subagentModelOverrideTemplates[assistantId] ?? {}
+                    subagentModelOverrideTemplates[assistantId] ?? {},
                   );
                   const template = Object.fromEntries(
-                    tmplKeys.map((k) => [k, model])
+                    tmplKeys.map((k) => [k, model]),
                   );
                   const value = JSON.stringify(template, null, 2);
                   setSubagentModelOverrides(value);
@@ -415,10 +442,10 @@ export function ConfigDialog({
             </div>
             <div
               className={cn(
-                "w-full overflow-hidden rounded-md border font-mono text-xs",
+                "w-full overflow-hidden rounded-md border text-xs font-mono",
                 subagentModelOverridesError
                   ? "border-destructive"
-                  : "border-input"
+                  : "border-input",
               )}
             >
               <CodeMirror
@@ -432,7 +459,7 @@ export function ConfigDialog({
                 onChange={(value) => {
                   setSubagentModelOverrides(value);
                   setSubagentModelOverridesError(
-                    validateSubagentOverridesJson(value)
+                    validateSubagentOverridesJson(value),
                   );
                 }}
               />
@@ -446,8 +473,9 @@ export function ConfigDialog({
                 Per-assistant overrides: defaults come from each entry in{" "}
                 <code className="text-xs">config.json</code>{" "}
                 <code className="text-xs">assistants</code> via optional{" "}
-                <code className="text-xs">subagentModelOverrideTemplates</code>;
-                omitted or empty uses <code className="text-xs">{"{}"}</code>.
+                <code className="text-xs">subagentModelOverrideTemplates</code>
+                ; omitted or empty uses{" "}
+                <code className="text-xs">{"{}"}</code>.
               </p>
             )}
           </div>

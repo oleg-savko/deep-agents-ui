@@ -22,6 +22,7 @@ import {
   X,
   ImageIcon,
   File as FileIconLucide,
+  Sparkles,
 } from "lucide-react";
 import { ChatMessage } from "@/app/components/ChatMessage";
 import type { Attachment, SubAgentRun, TodoItem, ToolCall } from "@/app/types/types";
@@ -41,10 +42,19 @@ import { cn } from "@/lib/utils";
 import { useStickToBottom } from "use-stick-to-bottom";
 import { FilesPopover } from "@/app/components/TasksFilesSidebar";
 import { toast } from "sonner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+const EXAMPLE_QUESTION_MAX_LENGTH = 140;
 
 interface ChatInterfaceProps {
   assistant: Assistant | null;
   debugMode: boolean;
+  agentDescription?: string;
+  exampleQuestions?: string[];
   // Optional controlled view props from host app
   view?: "chat" | "workflow";
   onViewChange?: (view: "chat" | "workflow") => void;
@@ -180,6 +190,8 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
   ({
     assistant,
     debugMode,
+    agentDescription,
+    exampleQuestions,
     view,
     onViewChange,
     onInput,
@@ -919,6 +931,74 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
               skeleton
             ) : (
               <>
+                {processedMessages.length === 0 && (agentDescription ?? assistant?.name) && (
+                  <div className="flex min-h-[70vh] flex-col">
+                    <div className="flex flex-1 items-center justify-center px-6">
+                      <div className="max-w-lg text-center opacity-60">
+                        <p className="text-lg font-semibold text-foreground">
+                          {assistant?.name ?? assistant?.assistant_id}
+                        </p>
+                        {agentDescription && (
+                          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                            {agentDescription}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {exampleQuestions && exampleQuestions.length > 0 && (
+                      <div className="flex w-full max-w-xl flex-col gap-3 px-6 pb-2 pt-8">
+                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#2F6868]">
+                          <Sparkles size={14} />
+                          <span>Try asking</span>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          {exampleQuestions.map((question, i) => {
+                            const isTruncated =
+                              question.length > EXAMPLE_QUESTION_MAX_LENGTH;
+                            const displayText = isTruncated
+                              ? `${question.slice(0, EXAMPLE_QUESTION_MAX_LENGTH).trimEnd()}…`
+                              : question;
+                            const button = (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setInput(question);
+                                  textareaRef.current?.focus();
+                                }}
+                                className="group flex w-full items-center gap-3 rounded-xl border border-[#2F6868]/20 bg-[#2F6868]/5 px-4 py-3 text-left text-sm font-medium text-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#2F6868]/50 hover:bg-[#2F6868]/10 hover:shadow-md"
+                              >
+                                <ArrowUp
+                                  size={14}
+                                  className="flex-shrink-0 rotate-45 text-[#2F6868] transition-transform group-hover:rotate-90"
+                                />
+                                <span className="flex-1 truncate">
+                                  {displayText}
+                                </span>
+                              </button>
+                            );
+                            if (!isTruncated) {
+                              return <div key={i}>{button}</div>;
+                            }
+                            return (
+                              <Tooltip
+                                key={i}
+                                delayDuration={200}
+                              >
+                                <TooltipTrigger asChild>{button}</TooltipTrigger>
+                                <TooltipContent
+                                  side="top"
+                                  className="max-w-md whitespace-pre-wrap break-words"
+                                >
+                                  {question}
+                                </TooltipContent>
+                              </Tooltip>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {(() => {
                   // Aggregate tool calls once per render so ChatMessage can
                   // resolve `[[chart]]` placeholders in final-answer messages
