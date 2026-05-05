@@ -307,7 +307,7 @@ export function ConfigDialog({
               <SelectTrigger id="assistantId">
                 <SelectValue placeholder="Select an assistant" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="w-[var(--radix-select-trigger-width)] max-w-[var(--radix-select-trigger-width)]">
                 {[
                   ...assistants,
                   ...(assistantId && !assistants.some((a) => a.value === assistantId)
@@ -330,7 +330,7 @@ export function ConfigDialog({
                       </SelectPrimitive.ItemText>
                     </div>
                     {"description" in assistant && assistant.description && (
-                      <span className="mt-0.5 text-xs text-muted-foreground whitespace-normal leading-snug">
+                      <span className="mt-0.5 pl-[22px] text-xs text-muted-foreground whitespace-normal break-words leading-snug">
                         {assistant.description}
                       </span>
                     )}

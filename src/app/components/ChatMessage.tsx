@@ -29,35 +29,52 @@ function formatAgentResponseDuration(ms: number): string {
   return `${minutes}m ${rem.toFixed(0)}s`;
 }
 
-const APP_PLACEHOLDER_RE = /\[\[(chart|diagram)(?::(\d+))?\]\]/g;
+// Single placeholder kind. Any MCP-UI tool is detected by the presence of an
+// HTML resource block in the tool's artifact — no per-kind hardcoding.
+const APP_PLACEHOLDER_RE = /\[\[app(?::(\d+))?\]\]/g;
 
 /**
- * Chart/diagram placeholder format (from chart_placeholders_middleware.py):
- *   [[chart]]     → 1st chart
- *   [[chart:N]]   → Nth chart (1-indexed)
- *   [[diagram]]   → 1st diagram
- *   [[diagram:N]] → Nth diagram (1-indexed)
- *
- * Resolution is positional over the provided lists of chart/diagram tool calls:
- * the agent's own tool-call history determines the mapping for each kind.
+ * Marker prefix iframe-driven MCP-app forms (e.g. jira_required_fields_ui)
+ * include on user messages they auto-post via `app.sendMessage`. The LLM
+ * still sees the full content; the chat UI collapses these into a one-line
+ * stub unless "internal LLM steps" (debugMode) is enabled.
  */
-function renderAppPlaceholders(
-  markdown: string,
-  chartToolCalls: ToolCall[],
-  diagramToolCalls: ToolCall[]
-) {
+const INTERNAL_USER_MESSAGE_MARKER = "<!--mcp:internal-->";
+
+function isInternalUserMessage(content: string): boolean {
+  return content.trimStart().startsWith(INTERNAL_USER_MESSAGE_MARKER);
+}
+
+function stripInternalMarker(content: string): string {
+  const trimmed = content.trimStart();
+  if (!trimmed.startsWith(INTERNAL_USER_MESSAGE_MARKER)) return content;
+  return trimmed.slice(INTERNAL_USER_MESSAGE_MARKER.length).trimStart();
+}
+
+/**
+ * App-UI placeholder format (from `AppPlaceholdersMiddleware`):
+ *   [[app]]      → 1st MCP UI from this answer
+ *   [[app:N]]    → Nth MCP UI (1-indexed)
+ *
+ * Resolution is positional over `uiToolCalls`: every tool call whose
+ * artifact contains an HTML resource block, in tool-call order.
+ */
+function renderAppPlaceholders(markdown: string, uiToolCalls: ToolCall[]) {
   const parts: Array<
     | { kind: "md"; value: string }
-    | { kind: "chart" | "diagram"; index: number }
+    | { kind: "app"; index: number; raw: string }
   > = [];
   let lastIndex = 0;
   APP_PLACEHOLDER_RE.lastIndex = 0;
   let m: RegExpExecArray | null;
   while ((m = APP_PLACEHOLDER_RE.exec(markdown)) !== null) {
     if (m.index > lastIndex) parts.push({ kind: "md", value: markdown.slice(lastIndex, m.index) });
-    const which = m[1] === "diagram" ? "diagram" : "chart";
-    const n = m[2] ? Number(m[2]) : 1;
-    parts.push({ kind: which, index: Number.isFinite(n) && n > 0 ? n - 1 : 0 });
+    const n = m[1] ? Number(m[1]) : 1;
+    parts.push({
+      kind: "app",
+      index: Number.isFinite(n) && n > 0 ? n - 1 : 0,
+      raw: m[0],
+    });
     lastIndex = m.index + m[0].length;
   }
   if (lastIndex < markdown.length) parts.push({ kind: "md", value: markdown.slice(lastIndex) });
@@ -69,15 +86,13 @@ function renderAppPlaceholders(
           if (!p.value.trim()) return <React.Fragment key={`md-${i}`} />;
           return <MarkdownContent key={`md-${i}`} content={p.value} />;
         }
-        const source = p.kind === "diagram" ? diagramToolCalls : chartToolCalls;
-        const toolCall = source[p.index];
+        const toolCall = uiToolCalls[p.index];
         if (!toolCall) {
-          const token = `[[${p.kind}${p.index > 0 ? `:${p.index + 1}` : ""}]]`;
-          return <MarkdownContent key={`md-missing-${i}`} content={token} />;
+          return <MarkdownContent key={`md-missing-${i}`} content={p.raw} />;
         }
         return (
           <ChartAppRenderer
-            key={`${p.kind}-${toolCall.id}-${i}`}
+            key={`app-${toolCall.id}-${i}`}
             toolCall={toolCall}
             className="my-3 w-full overflow-hidden rounded-md border border-border bg-background"
           />
@@ -87,24 +102,37 @@ function renderAppPlaceholders(
   );
 }
 
-/** Returns true if the tool call's args declare a chart render intent. */
-function hasChartIntent(tc: ToolCall): boolean {
-  const args: any = typeof tc.args === "string" ? (() => { try { return JSON.parse(tc.args as any); } catch { return {}; } })() : tc.args;
-  const render = args?.render;
-  const kind = typeof render === "string" ? render : render?.type;
-  return kind === "bar" || kind === "line" || kind === "pie";
-}
-
-/** Returns true if this tool call is a `create_diagram` (Draw.io MCP App) call. */
-function hasDiagramIntent(tc: ToolCall): boolean {
-  return tc.name === "create_diagram";
+/**
+ * Returns true if the tool call's artifact contains an HTML resource block —
+ * i.e. it produced an MCP-UI iframe. This is the single source of truth for
+ * "is this a UI tool call", replacing per-name (chart/diagram/form) checks.
+ */
+function hasUIArtifact(tc: ToolCall): boolean {
+  const artifact = (tc as unknown as { artifact?: unknown }).artifact;
+  const blocks =
+    artifact && typeof artifact === "object"
+      ? (artifact as { content_blocks?: unknown }).content_blocks
+      : undefined;
+  if (!Array.isArray(blocks)) return false;
+  for (const b of blocks as unknown[]) {
+    const block = b as { type?: string; resource?: { mimeType?: string } };
+    if (block?.type !== "resource" || !block.resource) continue;
+    if (/html/i.test(String(block.resource.mimeType ?? ""))) return true;
+  }
+  return false;
 }
 
 interface ChatMessageProps {
   message: Message;
   toolCalls: ToolCall[];
-  /** All tool calls from the thread, for resolving [[chart]] placeholders in final-answer messages. */
-  allToolCalls?: ToolCall[];
+  /**
+   * Tool calls that ran earlier in this *turn* (since the last human message),
+   * used to resolve `[[app]]` placeholders in text-only AI messages that don't
+   * carry their own tool calls. Scoping to the turn (not the whole thread)
+   * ensures `[[app]]` picks the freshly-invoked UI tool, not the first one in
+   * conversation history.
+   */
+  turnToolCalls?: ToolCall[];
   subAgentRunsByTaskId?: Record<string, SubAgentRun>;
   onRestartFromAIMessage: (message: Message) => void;
   onRestartFromSubTask: (toolCallId: string) => void;
@@ -121,7 +149,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(
   ({
     message,
     toolCalls,
-    allToolCalls,
+    turnToolCalls,
     subAgentRunsByTaskId,
     onRestartFromAIMessage,
     onRestartFromSubTask,
@@ -207,24 +235,24 @@ export const ChatMessage = React.memo<ChatMessageProps>(
     const hasAppPlaceholders =
       isAIMessage &&
       typeof aiMarkdownForDisplay === "string" &&
-      (aiMarkdownForDisplay.includes("[[chart") ||
-        aiMarkdownForDisplay.includes("[[diagram"));
+      aiMarkdownForDisplay.includes("[[app");
 
-    // For final-answer messages whose toolCalls are empty, the chart/diagram
-    // tool calls live on earlier messages; pull from `allToolCalls` in that case.
-    const chartToolCalls = useMemo(() => {
+    // For final-answer messages whose own `toolCalls` is empty, the
+    // UI-producing tool calls live on earlier messages of the *same turn*;
+    // fall back to `turnToolCalls` (scoped to this human→agent exchange so
+    // `[[app]]` picks the freshly invoked UI tool, not the first UI tool of
+    // the entire conversation).
+    // Detection is artifact-based (HTML resource block) — no per-tool-name
+    // hardcoding, so any new MCP UI tool registered with `_meta.ui.resourceUri`
+    // gets resolved automatically.
+    const uiToolCalls = useMemo(() => {
       if (!hasAppPlaceholders) return [];
       const source =
-        toolCalls.some(hasChartIntent) || !allToolCalls?.length ? toolCalls : allToolCalls;
-      return source.filter(hasChartIntent);
-    }, [hasAppPlaceholders, toolCalls, allToolCalls]);
-
-    const diagramToolCalls = useMemo(() => {
-      if (!hasAppPlaceholders) return [];
-      const source =
-        toolCalls.some(hasDiagramIntent) || !allToolCalls?.length ? toolCalls : allToolCalls;
-      return source.filter(hasDiagramIntent);
-    }, [hasAppPlaceholders, toolCalls, allToolCalls]);
+        toolCalls.some(hasUIArtifact) || !turnToolCalls?.length
+          ? toolCalls
+          : turnToolCalls;
+      return source.filter(hasUIArtifact);
+    }, [hasAppPlaceholders, toolCalls, turnToolCalls]);
 
     return (
       <div
@@ -279,17 +307,19 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                 )}
                 {isUser ? (
                   hasContent ? (
-                    <p className="m-0 whitespace-pre-wrap break-words text-sm leading-relaxed">
-                      {messageContent}
-                    </p>
+                    isInternalUserMessage(messageContent) && !debugMode ? (
+                      <p className="m-0 whitespace-pre-wrap break-words text-xs italic leading-relaxed text-muted-foreground">
+                        ↳ Internal payload hidden (toggle &quot;internal LLM steps&quot; to view)
+                      </p>
+                    ) : (
+                      <p className="m-0 whitespace-pre-wrap break-words text-sm leading-relaxed">
+                        {stripInternalMarker(messageContent)}
+                      </p>
+                    )
                   ) : null
                 ) : hasContent ? (
                   hasAppPlaceholders ? (
-                    renderAppPlaceholders(
-                      aiMarkdownForDisplay,
-                      chartToolCalls,
-                      diagramToolCalls
-                    )
+                    renderAppPlaceholders(aiMarkdownForDisplay, uiToolCalls)
                   ) : (
                     <MarkdownContent content={aiMarkdownForDisplay} />
                   )
