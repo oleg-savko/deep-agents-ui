@@ -149,6 +149,30 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
       return {};
     }, []);
 
+    // Bridge `app.sendMessage` from the iframe (e.g. jira_required_fields_ui's
+    // submit button) into the chat by dispatching a custom event ChatInterface
+    // listens for. Same escape-hatch pattern as `mcp-ui-save-file`.
+    const handleMessage = useCallback(
+      async (params: { role: string; content?: Array<{ type?: string; text?: string }> }) => {
+        const text =
+          (params.content ?? [])
+            .filter((b) => b?.type === "text" && typeof b.text === "string")
+            .map((b) => b.text!)
+            .join("\n")
+            .trim();
+        if (!text) return {};
+        await new Promise<void>((resolve, reject) => {
+          window.dispatchEvent(
+            new CustomEvent("mcp-ui-send-message", {
+              detail: { text, resolve, reject },
+            }),
+          );
+        });
+        return {};
+      },
+      [],
+    );
+
 
     // Grow-only: guests like drawio re-report a small natural height on
     // scroll/visibility changes; honoring the shrink permanently collapses the
@@ -314,6 +338,7 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
             toolResult={toolResult}
             hostContext={hostContext}
             onOpenLink={handleOpenLink}
+            onMessage={handleMessage}
             onSizeChanged={handleSizeChanged}
             onError={(e) => setErr(e.message)}
           />

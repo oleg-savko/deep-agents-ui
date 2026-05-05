@@ -377,6 +377,34 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       return () => window.removeEventListener("mcp-ui-save-file", onSave);
     }, [files, setFiles]);
 
+    // Bridge for child MCP-app iframes (e.g. jira_required_fields_ui submit)
+    // to post a user message into the conversation without prop-drilling
+    // `sendMessage`. The detail carries `resolve`/`reject` so the caller can
+    // await delivery and reflect submit-progress UI.
+    useEffect(() => {
+      const onSend = (e: Event) => {
+        const detail = (
+          e as CustomEvent<{
+            text: string;
+            resolve?: () => void;
+            reject?: (err: unknown) => void;
+          }>
+        ).detail;
+        if (!detail?.text || typeof detail.text !== "string") {
+          detail?.reject?.(new Error("invalid message payload"));
+          return;
+        }
+        try {
+          sendMessage(detail.text);
+          detail.resolve?.();
+        } catch (err) {
+          detail.reject?.(err);
+        }
+      };
+      window.addEventListener("mcp-ui-send-message", onSend);
+      return () => window.removeEventListener("mcp-ui-send-message", onSend);
+    }, [sendMessage]);
+
     const submitDisabled = isLoading || !assistant;
     const hasAttachments = attachments.length > 0;
 
@@ -926,16 +954,30 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                   </div>
                 )}
                 {(() => {
-                  // Aggregate tool calls once per render so ChatMessage can
-                  // resolve `[[chart]]` placeholders in final-answer messages
-                  // that don't carry their own tool calls.
-                  const allToolCalls = processedMessages.flatMap((m) => m.toolCalls);
+                  // For each message compute the tool calls that ran earlier in
+                  // the *same turn* (since the last human message). Text-only
+                  // AI messages use this list to resolve `[[app]]` placeholders
+                  // — using the whole-thread list instead would always pick the
+                  // first UI tool call of the conversation.
+                  const turnToolCallsByIndex: ToolCall[][] = [];
+                  let currentTurn: ToolCall[] = [];
+                  for (const m of processedMessages) {
+                    if (m.message.type === "human") {
+                      currentTurn = [];
+                      turnToolCallsByIndex.push([]);
+                      continue;
+                    }
+                    turnToolCallsByIndex.push(currentTurn);
+                    if (m.toolCalls.length > 0) {
+                      currentTurn = [...currentTurn, ...m.toolCalls];
+                    }
+                  }
                   return processedMessages.map((data, index) => (
                     <ChatMessage
                       key={data.message.id}
                       message={data.message}
                       toolCalls={data.toolCalls}
-                      allToolCalls={allToolCalls}
+                      turnToolCalls={turnToolCallsByIndex[index]}
                       subAgentRunsByTaskId={subAgentRunsByTaskId}
                       onRestartFromAIMessage={handleRestartFromAIMessage}
                       onRestartFromSubTask={handleRestartFromSubTask}

@@ -46,7 +46,8 @@
       "description": "Fast data analyst for ad-hoc business questions backed by ClickHouse analytics. Supports charts, data visualization, and quick data insights.",
       "exampleQuestions": [
         "как работает кп в confluence?",
-        "покажи формулу реструктуризации в коде репозитории gitlab?"
+        "покажи формулу реструктуризации в коде репозитории gitlab?",
+        "покажи статистику по ai_savings для MMRU по 335 спринту на графиках по департментам"
       ],
       "defaultModel": "litellm:openai/gpt-5.4-mini",
       "aiGroups": ["/ai-group/admin", "/ai-group/it", "/ai-group/business"],
