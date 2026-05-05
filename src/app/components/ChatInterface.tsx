@@ -47,6 +47,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  ACCEPTED_FILE_TYPES,
+  MAX_FILE_SIZE_DEFAULT,
+  MAX_FILE_SIZE_LARGE,
+} from "@/app/consts/files";
 
 const EXAMPLE_QUESTION_MAX_LENGTH = 140;
 
@@ -67,19 +72,6 @@ interface ChatInterfaceProps {
   skeleton: React.ReactNode;
   isAttachmentsAllowed?: boolean;
 }
-
-const MAX_FILE_SIZE_DEFAULT = 10 * 1024 * 1024; // 10 MB
-const MAX_FILE_SIZE_LARGE = 1024 * 1024 * 1024; // 1 GB for audio/video/doc uploads
-const ACCEPTED_FILE_TYPES = [
-  "image/*",
-  ".pdf", ".doc", ".docx", ".xlsx", ".xls",
-  ".txt", ".md", ".csv", ".json", ".yaml", ".yml", ".xml",
-  ".html", ".css", ".js", ".jsx", ".ts", ".tsx",
-  ".py", ".rb", ".go", ".rs", ".java", ".c", ".cpp", ".h",
-  ".sh", ".bash", ".sql", ".toml", ".ini", ".cfg", ".env", ".log", ".svg",
-  ".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac",
-  ".mp4", ".m4v", ".mov", ".avi", ".mkv",
-].join(",");
 
 function readFileAsAttachment(file: File): Promise<Attachment> {
   return new Promise((resolve, reject) => {
@@ -157,6 +149,7 @@ function readFileAsAttachment(file: File): Promise<Attachment> {
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
@@ -222,6 +215,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
 
     useEffect(() => {
       isMountedRef.current = true;
+
       return () => {
         isMountedRef.current = false;
       };
@@ -229,6 +223,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
 
     useEffect(() => {
       const timeout = setTimeout(() => void textareaRef.current?.focus());
+
       return () => clearTimeout(timeout);
     }, [threadId, agentId]);
 
@@ -269,6 +264,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
 
           if (!isAllowed) {
             toast.error(`File "${f.name}" has unsupported type, skipping.`);
+
             return false;
           }
 
@@ -284,8 +280,10 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
             console.warn(
               `File "${f.name}" exceeds ${limitMb} MB limit for this type, skipping.`
             );
+
             return false;
           }
+
           return true;
         });
         if (validFiles.length === 0) return;
@@ -304,9 +302,11 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
         }));
 
         setAttachments((prev) => [...prev, ...tempAttachments]);
+
         setLoadingAttachmentIds((prev) => {
           const next = new Set(prev);
           filesWithTempIds.forEach(({ tempId }) => next.add(tempId));
+
           return next;
         });
 
@@ -328,11 +328,14 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           const byTempId = new Map(
             newAttachments.map(({ tempId, attachment }) => [tempId, attachment])
           );
+
           return prev.map((attachment) => byTempId.get(attachment.id) ?? attachment);
         });
+
         setLoadingAttachmentIds((prev) => {
           const next = new Set(prev);
           filesWithTempIds.forEach(({ tempId }) => next.delete(tempId));
+
           return next;
         });
       },
@@ -447,6 +450,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           .catch((err) => detail.reject?.(err));
       };
       window.addEventListener("mcp-ui-save-file", onSave);
+
       return () => window.removeEventListener("mcp-ui-save-file", onSave);
     }, [files, setFiles]);
 
@@ -579,6 +583,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           );
           toolCallsInMessage.push(...toolUseBlocks);
         }
+
         return toolCallsInMessage;
       };
 
@@ -608,6 +613,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
         } catch {
           args = { raw: rawArgs };
         }
+
         return {
           id: raw.id || `tool-${Math.random()}`,
           name,
@@ -779,6 +785,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       const processedMessages = processedArray.map((data, index) => {
         const prevMessage =
           index > 0 ? processedArray[index - 1].message : null;
+
         return {
           ...data,
           showAvatar: data.message.type !== prevMessage?.type,

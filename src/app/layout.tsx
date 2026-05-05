@@ -9,12 +9,12 @@ const inter = Inter({ subsets: ["latin"] });
 const themeInitScript = `
 (function () {
   try {
-    var storedTheme = localStorage.getItem("theme");
-    var systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
+    const storedTheme = localStorage.getItem("theme");
+    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
       ? "dark"
       : "light";
       
-    var theme = (storedTheme === "light") || (storedTheme === "dark") ? storedTheme : systemTheme;
+    const theme = (storedTheme === "light") || (storedTheme === "dark") ? storedTheme : systemTheme;
     
     document.documentElement.dataset.theme = theme;
   } catch (e) {

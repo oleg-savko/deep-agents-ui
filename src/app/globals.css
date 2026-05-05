@@ -100,6 +100,8 @@
     --color-text-tertiary: #6b7280;
     --color-file-button: #ffffff;
     --color-file-button-hover: #e5e7eb;
+    --color-blueberry-blue: #005eb8;
+    --color-blueberry-blue-darker: #004eac;
 
     /* Tailwind/Radix UI component variables for light mode */
     --background: 209 71% 97%;

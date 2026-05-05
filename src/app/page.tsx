@@ -176,17 +176,19 @@ function HomePageContent() {
         onSave={handleSaveConfig}
         initialConfig={config}
       />
-      <ClientProvider deploymentUrl={config.deploymentUrl} apiKey={langsmithApiKey}>
+      <ClientProvider
+        deploymentUrl={config.deploymentUrl}
+        apiKey={langsmithApiKey}
+      >
         <div className="flex h-screen flex-col">
           <header className="flex h-16 items-center justify-between border-b border-border px-6">
             <div className="flex items-center gap-4">
               <h1 className="text-xl font-semibold">Deep Agent UI</h1>
               {!sidebar && (
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   onClick={() => setSidebar("1")}
-                  className="rounded-md border border-border bg-card p-3 text-foreground hover:bg-accent"
                 >
                   <MessagesSquare className="mr-2 h-4 w-4" />
                   Threads
@@ -207,7 +209,10 @@ function HomePageContent() {
                     <TooltipTrigger asChild>
                       <Info className="h-3.5 w-3.5 cursor-help text-muted-foreground/60 hover:text-muted-foreground" />
                     </TooltipTrigger>
-                    <TooltipContent side="bottom" className="max-w-xs">
+                    <TooltipContent
+                      side="bottom"
+                      className="max-w-xs"
+                    >
                       {assistantDescriptions[config.assistantId]}
                     </TooltipContent>
                   </Tooltip>
@@ -227,7 +232,7 @@ function HomePageContent() {
                 size="sm"
                 onClick={() => setThreadId(null)}
                 disabled={!_threadId}
-                className="border-[#2F6868] bg-[#2F6868] text-white hover:bg-[#2F6868]/80"
+                className="hover:bg-[--color-blueberry-blue-darker] border-[--color-blueberry-blue] bg-[--color-blueberry-blue] text-white hover:text-white"
               >
                 <SquarePen className="mr-2 h-4 w-4" />
                 New Thread
@@ -275,7 +280,9 @@ function HomePageContent() {
                     assistant={assistant}
                     debugMode={debugMode}
                     agentDescription={assistantDescriptions[config.assistantId]}
-                    exampleQuestions={assistantExampleQuestions[config.assistantId]}
+                    exampleQuestions={
+                      assistantExampleQuestions[config.assistantId]
+                    }
                     controls={<></>}
                     skeleton={
                       <div className="flex items-center justify-center p-8">

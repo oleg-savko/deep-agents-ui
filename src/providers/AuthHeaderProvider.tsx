@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { CHAT_IS_READY, SET_TOKEN } from "@/app/consts/postsTypes";
 
 export type AuthHeaderContextValue = {
   /** Forwarded `Authorization` value (e.g. `Bearer …`), or null if absent. */
@@ -27,12 +28,12 @@ export function AuthHeaderProvider({ children }: { children: ReactNode }) {
     const isInIframe = window.self !== window.top;
 
     if (isInIframe) {
-      window.parent.postMessage({ type: "CHAT_IS_READY" }, MANAGEMENT_ORIGIN);
+      window.parent.postMessage({ type: CHAT_IS_READY }, MANAGEMENT_ORIGIN);
 
       setReady(true);
 
       const handleManagementResponse = (event: MessageEvent) => {
-        if (event.data?.type !== "SET_TOKEN") return;
+        if (event.data?.type !== SET_TOKEN) return;
 
         const token = event.data.token;
         if (!token || typeof token !== "string") return;
