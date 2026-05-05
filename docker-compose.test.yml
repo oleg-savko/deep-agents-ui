@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  deep-agents-ui-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_DEPLOYMENT_URL=${NEXT_PUBLIC_DEPLOYMENT_URL:-https://deep-agent-ui.moneyman.ru}
+        - NEXT_PUBLIC_AGENT_ID=${NEXT_PUBLIC_AGENT_ID:-research}
+        - NEXT_PUBLIC_LANGSMITH_API_KEY=${NEXT_PUBLIC_LANGSMITH_API_KEY:-}
+        - NEXT_PUBLIC_LANGFUSE_PUBLIC_KEY=${NEXT_PUBLIC_LANGFUSE_PUBLIC_KEY:-}
+        - NEXT_PUBLIC_LANGFUSE_HOST=${NEXT_PUBLIC_LANGFUSE_HOST:-https://cloud.langfuse.com}
+    ports:
+      - "3011:3000"
+    volumes:
+      - ./config:/app/config:ro
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - .env
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
