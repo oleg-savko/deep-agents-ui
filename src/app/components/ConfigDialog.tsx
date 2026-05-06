@@ -246,7 +246,7 @@ export function ConfigDialog({
       open={open}
       onOpenChange={onOpenChange}
     >
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[525px]">
+      <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
           <DialogTitle>Configuration</DialogTitle>
           <DialogDescription>
@@ -487,12 +487,7 @@ export function ConfigDialog({
           >
             Cancel
           </Button>
-          <Button
-            variant="outline"
-            onClick={handleSave}
-          >
-            Save
-          </Button>
+          <Button onClick={handleSave}>Save</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
