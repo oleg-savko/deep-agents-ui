@@ -152,7 +152,7 @@ export function FeedbackButtons({ traceId, className }: FeedbackButtonsProps) {
               </Button>
               <Button
                 type="button"
-                variant="default"
+                variant="ghost"
                 size="sm"
                 onClick={handleCommentSubmit}
                 className="h-8 px-3 text-xs"
