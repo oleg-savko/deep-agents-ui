@@ -41,17 +41,11 @@ import { useQueryState } from "nuqs";
 import { cn } from "@/lib/utils";
 import { useStickToBottom } from "use-stick-to-bottom";
 import { FilesPopover } from "@/app/components/TasksFilesSidebar";
-import { toast } from "sonner";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  ACCEPTED_FILE_TYPES,
-  MAX_FILE_SIZE_DEFAULT,
-  MAX_FILE_SIZE_LARGE,
-} from "@/app/consts/files";
 
 const EXAMPLE_QUESTION_MAX_LENGTH = 140;
 
@@ -70,8 +64,10 @@ interface ChatInterfaceProps {
   controls: React.ReactNode;
   banner?: React.ReactNode;
   skeleton: React.ReactNode;
-  isAttachmentsAllowed?: boolean;
 }
+
+const MAX_FILE_SIZE_DEFAULT = 10 * 1024 * 1024; // 10 MB
+const MAX_FILE_SIZE_LARGE = 1024 * 1024 * 1024; // 1 GB for audio/video/doc uploads
 
 function readFileAsAttachment(file: File): Promise<Attachment> {
   return new Promise((resolve, reject) => {
@@ -149,7 +145,6 @@ function readFileAsAttachment(file: File): Promise<Attachment> {
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
@@ -192,21 +187,16 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     banner,
     hideInternalToggle,
     skeleton,
-    isAttachmentsAllowed = true,
   }) => {
     const [threadId] = useQueryState("threadId");
     const [agentId] = useQueryState("agentId");
     const [metaOpen, setMetaOpen] = useState<"tasks" | "files" | null>(null);
     const tasksContainerRef = useRef<HTMLDivElement | null>(null);
     const [isWorkflowView, setIsWorkflowView] = useState(false);
-    const isMountedRef = useRef(true);
 
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [attachments, setAttachments] = useState<Attachment[]>([]);
-    const [loadingAttachmentIds, setLoadingAttachmentIds] = useState<Set<string>>(
-      () => new Set()
-    );
     const [isDragOver, setIsDragOver] = useState(false);
     const isControlledView = typeof view !== "undefined";
     const workflowView = isControlledView
@@ -214,16 +204,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       : isWorkflowView;
 
     useEffect(() => {
-      isMountedRef.current = true;
-
-      return () => {
-        isMountedRef.current = false;
-      };
-    }, []);
-
-    useEffect(() => {
       const timeout = setTimeout(() => void textareaRef.current?.focus());
-
       return () => clearTimeout(timeout);
     }, [threadId, agentId]);
 
@@ -253,20 +234,11 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
 
     const processFiles = useCallback(
       async (fileList: FileList | File[]) => {
-        if (!isAttachmentsAllowed) return;
         const files = Array.from(fileList);
         const validFiles = files.filter((f) => {
           const isImage = isImageFile(f.type, f.name);
           const isDoc = isDocumentFile(f.type, f.name);
           const isTxt = isTextFile(f.type, f.name);
-
-          const isAllowed = isImage || isDoc || isTxt;
-
-          if (!isAllowed) {
-            toast.error(`File "${f.name}" has unsupported type, skipping.`);
-
-            return false;
-          }
 
           // Allow much larger size for non-image, non-text "documents"
           // (this includes meeting recordings: audio/video files).
@@ -280,66 +252,18 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
             console.warn(
               `File "${f.name}" exceeds ${limitMb} MB limit for this type, skipping.`
             );
-
             return false;
           }
-
           return true;
         });
         if (validFiles.length === 0) return;
 
-        const filesWithTempIds = validFiles.map((file) => ({
-          file,
-          tempId: `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        }));
-
-        const tempAttachments = filesWithTempIds.map(({ file, tempId }) => ({
-          id: tempId,
-          name: file.name,
-          type: resolveImageMimeType(file.type, file.name) ?? file.type,
-          size: file.size,
-          content: "",
-        }));
-
-        setAttachments((prev) => [...prev, ...tempAttachments]);
-
-        setLoadingAttachmentIds((prev) => {
-          const next = new Set(prev);
-          filesWithTempIds.forEach(({ tempId }) => next.add(tempId));
-
-          return next;
-        });
-
         const newAttachments = await Promise.all(
-          filesWithTempIds.map(async ({ file, tempId }) => ({
-            tempId,
-            attachment: {
-              ...(await readFileAsAttachment(file)),
-              id: tempId,
-            },
-          }))
+          validFiles.map(readFileAsAttachment)
         );
-
-        if (!isMountedRef.current) {
-          return;
-        }
-
-        setAttachments((prev) => {
-          const byTempId = new Map(
-            newAttachments.map(({ tempId, attachment }) => [tempId, attachment])
-          );
-
-          return prev.map((attachment) => byTempId.get(attachment.id) ?? attachment);
-        });
-
-        setLoadingAttachmentIds((prev) => {
-          const next = new Set(prev);
-          filesWithTempIds.forEach(({ tempId }) => next.delete(tempId));
-
-          return next;
-        });
+        setAttachments((prev) => [...prev, ...newAttachments]);
       },
-      [isAttachmentsAllowed]
+      []
     );
 
     const removeAttachment = useCallback((id: string) => {
@@ -450,14 +374,8 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           .catch((err) => detail.reject?.(err));
       };
       window.addEventListener("mcp-ui-save-file", onSave);
-
       return () => window.removeEventListener("mcp-ui-save-file", onSave);
     }, [files, setFiles]);
-
-
-    const isUploadingAttachments = loadingAttachmentIds.size > 0;
-    const submitDisabled = isLoading || isUploadingAttachments || !assistant;
-    const hasAttachments = attachments.length > 0;
 
     // Bridge for child MCP-app iframes (e.g. jira_required_fields_ui submit)
     // to post a user message into the conversation without prop-drilling
@@ -486,6 +404,9 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       window.addEventListener("mcp-ui-send-message", onSend);
       return () => window.removeEventListener("mcp-ui-send-message", onSend);
     }, [sendMessage]);
+
+    const submitDisabled = isLoading || !assistant;
+    const hasAttachments = attachments.length > 0;
 
     const handleSubmit = useCallback(
       (e?: FormEvent) => {
@@ -612,7 +533,6 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           );
           toolCallsInMessage.push(...toolUseBlocks);
         }
-
         return toolCallsInMessage;
       };
 
@@ -642,7 +562,6 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
         } catch {
           args = { raw: rawArgs };
         }
-
         return {
           id: raw.id || `tool-${Math.random()}`,
           name,
@@ -701,7 +620,8 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
 
           // If we’re currently inside a task run, collect AI progress text and nested tool calls.
           if (inferredTaskId && message.id) {
-            const run = subAgentRunsByTaskId.get(inferredTaskId);
+            const currentTaskId = inferredTaskId;
+            const run = subAgentRunsByTaskId.get(currentTaskId);
             if (run) {
               const text = extractStringFromMessageContent(message).trim();
               if (text) {
@@ -788,7 +708,8 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           // Otherwise, it may be a nested tool call result inside the current task run.
           const inferredTaskId = inferActiveTaskIdForMessage(message);
           if (inferredTaskId) {
-            const run = subAgentRunsByTaskId.get(inferredTaskId);
+            const currentTaskId = inferredTaskId;
+            const run = subAgentRunsByTaskId.get(currentTaskId);
             if (run) {
               const nestedIdx = run.toolCalls.findIndex((tc) => tc.id === toolCallId);
               const toolResultText = extractStringFromMessageContent(message);
@@ -814,7 +735,6 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       const processedMessages = processedArray.map((data, index) => {
         const prevMessage =
           index > 0 ? processedArray[index - 1].message : null;
-
         return {
           ...data,
           showAvatar: data.message.type !== prevMessage?.type,
@@ -922,17 +842,16 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       setInput(e.target.value);
     };
 
-    const handleInputResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    const handleInputResizeStart = (
+      e: React.MouseEvent<HTMLDivElement, MouseEvent>
+    ) => {
       const el = textareaRef.current;
       if (!el) return;
-
-      const target = e.currentTarget;
-      target.setPointerCapture(e.pointerId);
 
       const startY = e.clientY;
       const startHeight = el.offsetHeight || 0;
 
-      const onMove = (moveEvent: PointerEvent) => {
+      const onMove = (moveEvent: MouseEvent) => {
         const delta = startY - moveEvent.clientY;
         const minHeight = 32; // px
         const maxHeight = 240; // px (~6+ lines)
@@ -944,13 +863,12 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       };
 
       const onUp = () => {
-        target.releasePointerCapture(e.pointerId);
-        target.removeEventListener("pointermove", onMove);
-        target.removeEventListener("pointerup", onUp);
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
       };
 
-      target.addEventListener("pointermove", onMove);
-      target.addEventListener("pointerup", onUp);
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
     };
 
     return (
@@ -1296,7 +1214,9 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                           <FilesPopover
                             files={files}
                             setFiles={setFiles}
-                            editDisabled={isLoading || interrupt !== undefined}
+                            editDisabled={
+                              isLoading === true || interrupt !== undefined
+                            }
                           />
                         </div>
                       )}
@@ -1312,18 +1232,25 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              {isAttachmentsAllowed && (
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept={ACCEPTED_FILE_TYPES}
-                  multiple
-                  className="hidden"
-                  onChange={handleFileInputChange}
-                />
-              )}
-              {isAttachmentsAllowed && isDragOver && (
-                <div className="border-primary/30 bg-primary/5 text-primary/60 flex items-center justify-center border-b border-dashed px-[18px] py-4 text-sm">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="
+                  image/*,
+                  .pdf,.doc,.docx,.xlsx,.xls,
+                  .txt,.md,.csv,.json,.yaml,.yml,.xml,
+                  .html,.css,.js,.jsx,.ts,.tsx,
+                  .py,.rb,.go,.rs,.java,.c,.cpp,.h,
+                  .sh,.bash,.sql,.toml,.ini,.cfg,.env,.log,.svg,
+                  .wav,.mp3,.m4a,.aac,.ogg,.flac,
+                  .mp4,.m4v,.mov,.avi,.mkv
+                "
+                multiple
+                className="hidden"
+                onChange={handleFileInputChange}
+              />
+              {isDragOver && (
+                <div className="flex items-center justify-center border-b border-dashed border-primary/30 bg-primary/5 px-[18px] py-4 text-sm text-primary/60">
                   Drop files here to attach
                 </div>
               )}
@@ -1334,14 +1261,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                       key={attachment.id}
                       className="group relative flex items-center gap-1.5 rounded-lg border border-border bg-sidebar px-2 py-1.5 text-xs"
                     >
-                      {loadingAttachmentIds.has(attachment.id) ? (
-                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-muted/40">
-                          <LoaderCircle
-                            size={14}
-                            className="animate-spin text-muted-foreground"
-                          />
-                        </div>
-                      ) : attachment.preview ? (
+                      {attachment.preview ? (
                         <img
                           src={attachment.preview}
                           alt={attachment.name}
@@ -1386,7 +1306,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
               )}
               <div
                 className="mx-[18px] mt-1 h-2 cursor-row-resize"
-                onPointerDown={handleInputResizeStart}
+                onMouseDown={handleInputResizeStart}
               />
               <textarea
                 ref={textareaRef}
@@ -1401,27 +1321,26 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
               <div className="flex justify-between gap-2 p-3">
                 <div className="flex items-center gap-2">
                   {controls}
-                  {isAttachmentsAllowed && (
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                      title="Attach files"
-                      aria-label="Attach files"
-                    >
-                      <Paperclip size={16} />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                    title="Attach files"
+                    aria-label="Attach files"
+                  >
+                    <Paperclip size={16} />
+                  </button>
                 </div>
 
                 <div className="flex justify-end gap-2">
                   <Button
                     type={isLoading ? "button" : "submit"}
-                    variant={isLoading ? "destructive" : "outline"}
+                    variant={isLoading ? "destructive" : "default"}
                     onClick={isLoading ? stopStream : handleSubmit}
                     disabled={
                       !isLoading &&
-                      (submitDisabled || (!input.trim() && !hasAttachments))
+                      (submitDisabled ||
+                        (!input.trim() && !hasAttachments))
                     }
                   >
                     {isLoading ? (
