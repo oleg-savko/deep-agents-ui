@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { CHAT_IS_READY, SET_TOKEN } from "@/app/consts/postsTypes";
 
 export type AuthHeaderContextValue = {
   /** Forwarded `Authorization` value (e.g. `Bearer …`), or null if absent. */
@@ -17,12 +18,38 @@ export type AuthHeaderContextValue = {
 };
 
 const AuthHeaderContext = createContext<AuthHeaderContextValue | null>(null);
+const MANAGEMENT_ORIGIN = "*";
 
 export function AuthHeaderProvider({ children }: { children: ReactNode }) {
   const [authorization, setAuthorization] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    const isInIframe = window.self !== window.top;
+
+    if (isInIframe) {
+      window.parent.postMessage({ type: CHAT_IS_READY }, MANAGEMENT_ORIGIN);
+
+      setReady(true);
+
+      const handleManagementResponse = (event: MessageEvent) => {
+        if (event.data?.type !== SET_TOKEN) return;
+
+        const token = event.data.token;
+        if (!token || typeof token !== "string") return;
+
+        setAuthorization(
+          token.startsWith("Bearer ") ? token : `Bearer ${token}`
+        );
+      };
+
+      window.addEventListener("message", handleManagementResponse);
+
+      return () => {
+        window.removeEventListener("message", handleManagementResponse);
+      };
+    }
+
     let cancelled = false;
     fetch("/api/auth/header", { cache: "no-store", credentials: "same-origin" })
       .then(async (r) => {
