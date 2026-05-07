@@ -49,7 +49,7 @@
         "покажи формулу реструктуризации в коде репозитории gitlab?",
         "покажи статистику по ai_savings для MMRU по 335 спринту на графиках по департментам"
       ],
-      "defaultModel": "litellm:openai/gpt-5.4-mini",
+      "defaultModel": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
       "aiGroups": ["/ai-group/admin", "/ai-group/it", "/ai-group/business"],
       "models": [
         {
@@ -116,7 +116,7 @@
       "value": "story_chat",
       "label": "Story Chat Agent",
       "description": "Business Analysis Assistant for creating high-quality Jira user stories. Transforms stakeholder requirements into well-structured stories with acceptance criteria.",
-      "defaultModel": "litellm:openai/gpt-5.4-mini",
+      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
       "aiGroups": ["/ai-group/admin", "/ai-group/business"],
       "models": [
         {
@@ -215,7 +215,7 @@
         "What decisions were made in this planning session? [paste transcript]",
         "Create a stakeholder-ready summary of this sprint retrospective"
       ],
-      "defaultModel": "litellm:openai/gpt-5.4-mini",
+      "defaultModel": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
       "aiGroups": ["/ai-group/admin"],
       "models": [
         {
@@ -225,6 +225,10 @@
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
           "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+        },
+        {
+          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
+          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
         }
       ]
     },
@@ -242,6 +246,10 @@
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
           "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+        },
+        {
+          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
+          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
         }
       ]
     },
@@ -259,6 +267,29 @@
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
           "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+        }
+      ]
+    },
+    {
+      "value": "de_chat",
+      "label": "DE Chat Agent",
+      "description": "Analitics and data engineering assistant base on project specific clickhouse database.",
+      "exampleQuestions": [
+      ],
+      "aiGroups": ["/ai-group/admin", "/ai-group/business", "/ai-group/it"],
+      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+      "models": [
+        {
+          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+        },
+        {
+          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
+          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
+        },
+        {
+          "value": "litellm:openai/gpt-5.4-mini",
+          "label": "litellm:openai/gpt-5.4-mini"
         }
       ]
     }

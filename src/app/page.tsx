@@ -13,6 +13,7 @@ import { Assistant } from "@langchain/langgraph-sdk";
 import { ClientProvider } from "@/providers/ClientProvider";
 import { Settings, MessagesSquare, SquarePen, Info } from "lucide-react";
 import { ThemeToggle } from "@/app/components/ThemeToggle";
+import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
   TooltipContent,
@@ -121,6 +122,13 @@ function HomePageContent() {
 
   const debugMode = config?.showInternalSteps ?? false;
 
+  const handleToggleInternalSteps = (checked: boolean) => {
+    if (!config) return;
+    const updated = { ...config, showInternalSteps: checked };
+    saveConfig(updated);
+    setConfig(updated);
+  };
+
   if (!config) {
     return (
       <>
@@ -218,6 +226,26 @@ function HomePageContent() {
                   </Tooltip>
                 )}
               </div>
+              <Tooltip delayDuration={200}>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1.5">
+                    <Switch
+                      id="header-showInternalSteps"
+                      checked={debugMode}
+                      onCheckedChange={handleToggleInternalSteps}
+                    />
+                    <label
+                      htmlFor="header-showInternalSteps"
+                      className="cursor-pointer text-xs text-muted-foreground"
+                    >
+                      Internal steps
+                    </label>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  Show intermediate agent and tool steps in the conversation
+                </TooltipContent>
+              </Tooltip>
               <ThemeToggle />
               <Button
                 variant="outline"
@@ -232,7 +260,7 @@ function HomePageContent() {
                 size="sm"
                 onClick={() => setThreadId(null)}
                 disabled={!_threadId}
-                className="hover:bg-[--color-blueberry-blue-darker] border-[--color-blueberry-blue] bg-[--color-blueberry-blue] text-white hover:text-white"
+                className="!border-[var(--color-new-thread-btn)] !bg-[var(--color-new-thread-btn)] !text-white hover:!bg-[var(--color-new-thread-btn-hover)]"
               >
                 <SquarePen className="mr-2 h-4 w-4" />
                 New Thread

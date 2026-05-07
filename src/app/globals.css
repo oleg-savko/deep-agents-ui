@@ -102,6 +102,8 @@
     --color-file-button-hover: #e5e7eb;
     --color-blueberry-blue: #005eb8;
     --color-blueberry-blue-darker: #004eac;
+    --color-new-thread-btn: #005eb8;
+    --color-new-thread-btn-hover: #004eac;
 
     /* Tailwind/Radix UI component variables for light mode */
     --background: 209 71% 97%;
@@ -151,6 +153,8 @@
     --color-text-tertiary: #6b7280;
     --color-file-button: #2a2a2a;
     --color-file-button-hover: #353535;
+    --color-new-thread-btn: #3d8f8f;
+    --color-new-thread-btn-hover: #4aabab;
 
     /* Tailwind/Radix UI component variables for dark mode */
     --background: 0 0% 13%;

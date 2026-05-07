@@ -337,7 +337,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(
           )}
           {isAIMessage && !isLoading && message.id && (hasContent || responseDurationMs != null) && (
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-              {hasContent && <FeedbackButtons traceId={message.id} />}
+              {hasContent && isLastMessage && <FeedbackButtons traceId={message.id} />}
               {responseDurationMs != null && (
                 <span
                   className="text-muted-foreground text-xs tabular-nums"
