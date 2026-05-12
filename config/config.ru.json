@@ -19,55 +19,6 @@
   ],
   "assistants": [
     {
-      "value": "ba_research",
-      "label": "BA Research Agent",
-      "description": "Researches and analyzes Jira stories to create comprehensive BA specifications and requirement documents. Reviews pre-development requirements for completeness, consistency, and scope correctness.",
-      "defaultModel": "litellm:openai/gpt-5.4",
-      "aiGroups": ["/ai-group/admin"],
-      "models": [
-        {
-          "value": "litellm:openai/gpt-5.4",
-          "label": "litellm:openai/gpt-5.4"
-        },
-        {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
-        }
-      ],
-      "subagentModelOverrideTemplates": {
-        "default-researcher": "openai:gpt-5.4",
-        "ba-requirements-reviewer": "openai:gpt-5.4",
-        "business-story-to-ba-specification-developer": "openai:gpt-5.4"
-      }
-    },
-    {
-      "value": "ba_task_chat",
-      "label": "BA Task Chat Agent",
-      "description": "BA task chat agent for creating and updating Jira tasks and Confluence pages.",
-      "exampleQuestions": [
-      ],
-      "aiGroups": ["/ai-group/admin", "/ai-group/business"],
-      "defaultModel": "litellm:openai/gpt-5.4",
-      "models": [
-        {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
-        },
-        {
-          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
-        },
-        {
-          "value": "litellm:openai/gpt-5.4",
-          "label": "litellm:openai/gpt-5.4"
-        },
-        {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
-        }
-      ]
-    },
-    {
       "value": "chat",
       "label": "Chat Agent",
       "description": "Fast data analyst for ad-hoc business questions backed by ClickHouse analytics. Supports charts, data visualization, and quick data insights.",
@@ -97,49 +48,13 @@
       "value": "mt_chat",
       "label": "MT Chat Agent",
       "description": "Fast knowledge retriever for quick factual lookups and Q&A from your knowledge base.",
-      "exampleQuestions": [
-        "когда зарплата?"
-      ],
+      "exampleQuestions": ["когда зарплата?"],
       "defaultModel": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
       "aiGroups": ["/ai-group/admin", "/ai-group/it", "/ai-group/business"],
       "models": [
         {
           "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
           "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
-        }
-      ]
-    },
-    {
-      "value": "pure_local_chat",
-      "label": "Pure Local Chat Agent",
-      "description": "Local-only chat with no external data retrieval. Use for privacy-sensitive conversations or offline reasoning without any knowledge base access.",
-      "defaultModel": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-      "aiGroups": ["/ai-group/admin", "/ai-group/it", "/ai-group/business"],
-      "models": [
-        {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
-        },
-        {
-          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
-        }
-      ]
-    },
-    {
-      "value": "sd_chat",
-      "label": "SD Chat Agent",
-      "description": "Jira Service Management assistant for triaging, classifying, and responding to service desk tickets. Helps structure and route support requests efficiently.",
-      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-      "aiGroups": ["/ai-group/admin"],
-      "models": [
-        {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
-        },
-        {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
         }
       ]
     },
@@ -157,6 +72,76 @@
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
           "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+        }
+      ]
+    },
+    {
+      "value": "ba_research",
+      "label": "BA Research Agent",
+      "description": "Researches and analyzes Jira stories to create comprehensive BA specifications and requirement documents. Reviews pre-development requirements for completeness, consistency, and scope correctness.",
+      "defaultModel": "litellm:openai/gpt-5.4",
+      "aiGroups": ["/ai-group/admin"],
+      "models": [
+        {
+          "value": "litellm:openai/gpt-5.4",
+          "label": "litellm:openai/gpt-5.4"
+        },
+        {
+          "value": "litellm:openai/gpt-5.4-mini",
+          "label": "litellm:openai/gpt-5.4-mini"
+        }
+      ],
+      "subagentModelOverrideTemplates": {
+        "default-researcher": "openai:gpt-5.4",
+        "ba-requirements-reviewer": "openai:gpt-5.4",
+        "business-story-to-ba-specification-developer": "openai:gpt-5.4"
+      }
+    },
+    {
+      "value": "ba_task_chat",
+      "label": "BA Task Chat Agent",
+      "description": "BA task chat agent for creating and updating Jira tasks and Confluence pages.",
+      "exampleQuestions": [],
+      "aiGroups": ["/ai-group/admin", "/ai-group/business"],
+      "defaultModel": "litellm:openai/gpt-5.4",
+      "models": [
+        {
+          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+        },
+        {
+          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
+          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
+        },
+        {
+          "value": "litellm:openai/gpt-5.4",
+          "label": "litellm:openai/gpt-5.4"
+        },
+        {
+          "value": "litellm:openai/gpt-5.4-mini",
+          "label": "litellm:openai/gpt-5.4-mini"
+        }
+      ]
+    },
+    {
+      "value": "codebase_qna",
+      "label": "Codebase Q&A Agent (for business users)",
+      "description": "Business-facing Q&A assistant for your GitLab codebase. Helps non-developers understand what features, integrations, and functionality exist in the code.",
+      "exampleQuestions": ["покажи формулу реструктуризации в коде"],
+      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+      "aiGroups": ["/ai-group/admin", "/ai-group/it"],
+      "models": [
+        {
+          "value": "litellm:openai/gpt-5.4-mini",
+          "label": "litellm:openai/gpt-5.4-mini"
+        },
+        {
+          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+        },
+        {
+          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
+          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
         }
       ]
     },
@@ -193,19 +178,13 @@
       }
     },
     {
-      "value": "codebase_qna",
-      "label": "Codebase Q&A Agent (for business users)",
-      "description": "Business-facing Q&A assistant for your GitLab codebase. Helps non-developers understand what features, integrations, and functionality exist in the code.",
-      "exampleQuestions": [
-        "покажи формулу реструктуризации в коде"
-      ],
+      "value": "de_chat",
+      "label": "DE Chat Agent",
+      "description": "Analitics and data engineering assistant base on project specific clickhouse database.",
+      "exampleQuestions": [],
+      "aiGroups": ["/ai-group/admin", "/ai-group/business", "/ai-group/it"],
       "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-      "aiGroups": ["/ai-group/admin", "/ai-group/it"],
       "models": [
-        {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
-        },
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
           "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
@@ -213,6 +192,10 @@
         {
           "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
           "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
+        },
+        {
+          "value": "litellm:openai/gpt-5.4-mini",
+          "label": "litellm:openai/gpt-5.4-mini"
         }
       ]
     },
@@ -234,6 +217,23 @@
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
           "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+        }
+      ]
+    },
+    {
+      "value": "sd_chat",
+      "label": "SD Chat Agent",
+      "description": "Jira Service Management assistant for triaging, classifying, and responding to service desk tickets. Helps structure and route support requests efficiently.",
+      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+      "aiGroups": ["/ai-group/admin"],
+      "models": [
+        {
+          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+        },
+        {
+          "value": "litellm:openai/gpt-5.4-mini",
+          "label": "litellm:openai/gpt-5.4-mini"
         }
       ]
     },
@@ -302,13 +302,11 @@
       ]
     },
     {
-      "value": "de_chat",
-      "label": "DE Chat Agent",
-      "description": "Analitics and data engineering assistant base on project specific clickhouse database.",
-      "exampleQuestions": [
-      ],
-      "aiGroups": ["/ai-group/admin", "/ai-group/business", "/ai-group/it"],
-      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+      "value": "pure_local_chat",
+      "label": "Pure Local Chat Agent",
+      "description": "Local-only chat with no external data retrieval. Use for privacy-sensitive conversations or offline reasoning without any knowledge base access.",
+      "defaultModel": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
+      "aiGroups": ["/ai-group/admin", "/ai-group/it", "/ai-group/business"],
       "models": [
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
@@ -317,10 +315,6 @@
         {
           "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
           "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
-        },
-        {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
         }
       ]
     }
