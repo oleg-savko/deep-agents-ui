@@ -11,7 +11,14 @@ import { ConfigDialog } from "@/app/components/ConfigDialog";
 import { Button } from "@/components/ui/button";
 import { Assistant } from "@langchain/langgraph-sdk";
 import { ClientProvider } from "@/providers/ClientProvider";
-import { Settings, MessagesSquare, SquarePen, Info } from "lucide-react";
+import { Settings, MessagesSquare, SquarePen, Info, Check, ChevronDown } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import * as SelectPrimitive from "@radix-ui/react-select";
 import { ThemeToggle } from "@/app/components/ThemeToggle";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -49,6 +56,9 @@ function HomePageContent() {
   const [assistantExampleQuestions, setAssistantExampleQuestions] = useState<
     Record<string, string[]>
   >({});
+  const [configAssistants, setConfigAssistants] = useState<
+    { value: string; label: string; description?: string }[]
+  >([]);
 
   useEffect(() => {
     const savedConfig = getConfig();
@@ -91,6 +101,15 @@ function HomePageContent() {
           setAssistantDescriptions(descriptions);
           setAssistantLabels(labels);
           setAssistantExampleQuestions(exampleQuestions);
+          setConfigAssistants(
+            (data.assistants ?? []).map(
+              (a: { value: string; label?: string; description?: string }) => ({
+                value: a.value,
+                label: a.label ?? a.value,
+                description: a.description,
+              }),
+            ),
+          );
         }
       } catch {
         /* ignore */
@@ -210,17 +229,53 @@ function HomePageContent() {
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <span className="font-medium">Assistant:</span>{" "}
-                {config.assistantId}
+                <span className="font-medium">Assistant:</span>
+                <Select
+                  value={config.assistantId}
+                  onValueChange={(newId) => {
+                    const updated = { ...config, assistantId: newId };
+                    handleSaveConfig(updated);
+                    setThreadId(null);
+                  }}
+                >
+                  <SelectTrigger className="h-7 gap-1 border-none bg-transparent px-1.5 text-sm shadow-none focus:ring-0 [&>svg]:hidden">
+                    <SelectValue>
+                      {assistantLabels[config.assistantId] ?? config.assistantId}
+                    </SelectValue>
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                  </SelectTrigger>
+                  <SelectContent align="end" className="max-w-[320px]">
+                    {configAssistants.map((a) => (
+                      <SelectPrimitive.Item
+                        key={a.value}
+                        value={a.value}
+                        className="relative flex w-full cursor-default select-none flex-col items-start rounded-sm py-1.5 pl-2 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                      >
+                        <div className="flex w-full items-center gap-2">
+                          <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                            <SelectPrimitive.ItemIndicator>
+                              <Check className="h-4 w-4" />
+                            </SelectPrimitive.ItemIndicator>
+                          </span>
+                          <SelectPrimitive.ItemText>
+                            {a.label}
+                          </SelectPrimitive.ItemText>
+                        </div>
+                        {a.description && (
+                          <span className="mt-0.5 pl-[22px] text-xs text-muted-foreground whitespace-normal break-words leading-snug">
+                            {a.description}
+                          </span>
+                        )}
+                      </SelectPrimitive.Item>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {assistantDescriptions[config.assistantId] && (
                   <Tooltip delayDuration={200}>
                     <TooltipTrigger asChild>
                       <Info className="h-3.5 w-3.5 cursor-help text-muted-foreground/60 hover:text-muted-foreground" />
                     </TooltipTrigger>
-                    <TooltipContent
-                      side="bottom"
-                      className="max-w-xs"
-                    >
+                    <TooltipContent side="bottom" className="max-w-xs">
                       {assistantDescriptions[config.assistantId]}
                     </TooltipContent>
                   </Tooltip>
