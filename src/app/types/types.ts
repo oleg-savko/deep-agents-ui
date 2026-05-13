@@ -57,6 +57,12 @@ export interface SubAgentRun {
   progress: SubAgentProgressItem[];
   /** Tool calls that happened during the task window. */
   toolCalls: ToolCall[];
+  /** Wall-clock ms when the task tool call was first seen (streaming). */
+  startedAt?: number;
+  /** Wall-clock ms when the task tool result closed the run (streaming). */
+  endedAt?: number;
+  /** Aggregated token usage from all AI messages in the run. */
+  tokenUsage?: { input: number; output: number; total: number };
 }
 
 export interface FileItem {

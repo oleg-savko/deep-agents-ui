@@ -143,6 +143,7 @@ interface ChatMessageProps {
   ui?: any[];
   stream?: any;
   responseDurationMs?: number;
+  totalTokenUsage?: { input: number; output: number; total: number };
 }
 
 export const ChatMessage = React.memo<ChatMessageProps>(
@@ -160,6 +161,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(
     ui,
     stream,
     responseDurationMs,
+    totalTokenUsage,
   }) => {
     const isUser = message.type === "human";
     const isAIMessage = message.type === "ai";
@@ -335,19 +337,42 @@ export const ChatMessage = React.memo<ChatMessageProps>(
               )}
             </div>
           )}
-          {isAIMessage && !isLoading && message.id && (hasContent || responseDurationMs != null) && (
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-              {hasContent && isLastMessage && <FeedbackButtons traceId={message.id} />}
-              {responseDurationMs != null && (
-                <span
-                  className="text-muted-foreground text-xs tabular-nums"
-                  title="Time from your request until this reply finished (measured in the browser)"
-                >
-                  {formatAgentResponseDuration(responseDurationMs)}
-                </span>
-              )}
-            </div>
-          )}
+          {isAIMessage && !isLoading && message.id && (() => {
+            const msgUsage = (message as any).usage_metadata as
+              | { input_tokens?: number; output_tokens?: number; total_tokens?: number }
+              | undefined;
+            const formatTok = (n: number) =>
+              n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
+            const hasFooter =
+              hasContent ||
+              responseDurationMs != null ||
+              (debugMode && !!msgUsage) ||
+              (debugMode && !!totalTokenUsage);
+            if (!hasFooter) return null;
+            return (
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                {hasContent && isLastMessage && <FeedbackButtons traceId={message.id} />}
+                {responseDurationMs != null && (
+                  <span
+                    className="text-muted-foreground text-xs tabular-nums"
+                    title="Time from your request until this reply finished (measured in the browser)"
+                  >
+                    {formatAgentResponseDuration(responseDurationMs)}
+                  </span>
+                )}
+                {debugMode && msgUsage && (msgUsage.input_tokens ?? 0) + (msgUsage.output_tokens ?? 0) > 0 && (
+                  <span className="text-muted-foreground text-xs tabular-nums" title="Token usage for this message (input / output)">
+                    ↑{formatTok(msgUsage.input_tokens ?? 0)} ↓{formatTok(msgUsage.output_tokens ?? 0)}
+                  </span>
+                )}
+                {debugMode && totalTokenUsage && (
+                  <span className="text-muted-foreground text-xs tabular-nums font-medium" title="Total token usage for this response">
+                    Total: ↑{formatTok(totalTokenUsage.input)} ↓{formatTok(totalTokenUsage.output)}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
           {hasToolCalls && debugMode && (
             <div className="mt-4 flex w-full flex-col">
               {toolCalls.map((toolCall, idx, arr) => {
@@ -376,11 +401,22 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                 <div key={subAgent.id} className="flex w-full flex-col gap-2">
                   <div className="flex items-end gap-2">
                     <div className="w-[calc(100%-100px)]">
-                      <SubAgentIndicator
-                        subAgent={subAgent}
-                        onClick={() => toggleSubAgent(subAgent.id)}
-                        isExpanded={isSubAgentExpanded(subAgent.id)}
-                      />
+                      {(() => {
+                        const run = subAgentRunsByTaskId?.[subAgent.id];
+                        const durationMs =
+                          run?.startedAt !== undefined && run?.endedAt !== undefined
+                            ? run.endedAt - run.startedAt
+                            : undefined;
+                        return (
+                          <SubAgentIndicator
+                            subAgent={subAgent}
+                            onClick={() => toggleSubAgent(subAgent.id)}
+                            isExpanded={isSubAgentExpanded(subAgent.id)}
+                            durationMs={durationMs}
+                            tokenUsage={run?.tokenUsage}
+                          />
+                        );
+                      })()}
                     </div>
                     <div className="relative h-full min-h-[40px] w-[72px] flex-shrink-0">
                       {debugMode && subAgent.status === "completed" && (

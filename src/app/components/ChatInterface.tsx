@@ -570,7 +570,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
 
     // Reserved: additional UI state
     // TODO: can we make this part of the hook?
-    const { processedMessages, subAgentRunsByTaskId } = useMemo(() => {
+    const { processedMessages, subAgentRunsByTaskId, totalTokenUsage } = useMemo(() => {
       /*
      1. Loop through all messages
      2. For each AI message, add the AI message, and any tool calls to the messageMap
@@ -717,6 +717,15 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                 if (run.toolCalls.some((x) => x.id === tc.id)) continue;
                 run.toolCalls.push(tc);
               }
+              const usage = (message as any).usage_metadata;
+              if (usage) {
+                const prev = run.tokenUsage ?? { input: 0, output: 0, total: 0 };
+                run.tokenUsage = {
+                  input: prev.input + (usage.input_tokens ?? 0),
+                  output: prev.output + (usage.output_tokens ?? 0),
+                  total: prev.total + (usage.total_tokens ?? 0),
+                };
+              }
             }
           }
 
@@ -731,12 +740,18 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                 typeof tc.args?.["subagent_type"] === "string"
                   ? (tc.args["subagent_type"] as string)
                   : undefined;
+              const msgCreatedAt = (getMessagesMetadata(message) as any)
+                ?.firstSeenState?.created_at as string | undefined;
+              const startedAt = msgCreatedAt
+                ? new Date(msgCreatedAt).getTime()
+                : subAgentRunsCacheRef.current[taskId]?.startedAt ?? Date.now();
               subAgentRunsByTaskId.set(taskId, {
                 taskToolCallId: taskId,
                 subAgentType,
                 status: tc.status,
                 progress: [],
                 toolCalls: [],
+                startedAt,
               });
               activeTaskStack.push(taskId);
               if (subAgentType) {
@@ -771,6 +786,11 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           const taskRun = subAgentRunsByTaskId.get(toolCallId);
           if (taskRun) {
             taskRun.status = interrupt ? "interrupted" : "completed";
+            const toolMsgCreatedAt = (getMessagesMetadata(message) as any)
+              ?.firstSeenState?.created_at as string | undefined;
+            taskRun.endedAt = toolMsgCreatedAt
+              ? new Date(toolMsgCreatedAt).getTime()
+              : subAgentRunsCacheRef.current[toolCallId]?.endedAt ?? Date.now();
             // Pop only if it’s on stack; tolerate out-of-order/interleaving.
             const idx = activeTaskStack.lastIndexOf(toolCallId);
             if (idx !== -1) {
@@ -839,13 +859,33 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
         if (run.toolCalls.length === 0 && prev.toolCalls.length > 0) {
           merged[taskId] = { ...merged[taskId], toolCalls: prev.toolCalls };
         }
+        if (!run.tokenUsage && prev.tokenUsage) {
+          merged[taskId] = { ...merged[taskId], tokenUsage: prev.tokenUsage };
+        }
       }
 
       subAgentRunsCacheRef.current = merged;
 
+      // Aggregate token usage across all AI messages in the thread.
+      const totalTokenUsage = messages.reduce(
+        (acc, msg) => {
+          if (msg.type !== "ai") return acc;
+          const usage = (msg as any).usage_metadata;
+          if (!usage) return acc;
+          return {
+            input: acc.input + (usage.input_tokens ?? 0),
+            output: acc.output + (usage.output_tokens ?? 0),
+            total: acc.total + (usage.total_tokens ?? 0),
+          };
+        },
+        { input: 0, output: 0, total: 0 },
+      );
+      const hasTotalUsage = totalTokenUsage.total > 0;
+
       return {
         processedMessages,
         subAgentRunsByTaskId: merged,
+        totalTokenUsage: hasTotalUsage ? totalTokenUsage : undefined,
       };
     }, [messages, interrupt, getMessagesMetadata]);
 
@@ -1072,6 +1112,11 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                       responseDurationMs={
                         data.message.type === "ai" && data.message.id
                           ? responseDurationByAiMessageId[data.message.id]
+                          : undefined
+                      }
+                      totalTokenUsage={
+                        index === processedMessages.length - 1
+                          ? totalTokenUsage
                           : undefined
                       }
                     />
