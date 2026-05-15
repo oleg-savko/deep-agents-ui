@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import { Assistant } from "@langchain/langgraph-sdk";
 import { useQueryState } from "nuqs";
 import { ClientProvider } from "@/providers/ClientProvider";
@@ -12,22 +12,12 @@ import { THREAD_ID_CHANGED } from "@/app/consts/postsTypes";
 import {
   EMBED_ASSISTANT_ID,
   EMBED_DEPLOYMENT_URL,
+  EMBED_LLM_MODEL,
 } from "@/app/consts/embedSettings";
-
-type ConfigModel = { value: string; label: string };
-
-type ConfigAssistant = {
-  value: string;
-  defaultModel?: string;
-  models?: ConfigModel[];
-};
-
-type RuntimeConfig = { assistants?: ConfigAssistant[] };
 
 function EmbedPageContent() {
   const [threadId, setThreadId] = useQueryState("threadId");
   const { authorization, ready } = useAuthHeader();
-  const [embedModelName, setEmbedModelName] = useState<string | null>(null);
 
   useEffect(() => {
     window.parent.postMessage(
@@ -35,33 +25,6 @@ function EmbedPageContent() {
       "*"
     );
   }, [threadId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const response = await fetch("/api/config", { cache: "no-store" });
-        if (!response.ok || cancelled) return;
-        const data = (await response.json()) as RuntimeConfig;
-        const assistant = (data.assistants ?? []).find(
-          (assistant) => assistant.value === EMBED_ASSISTANT_ID
-        );
-        if (!assistant) return;
-        const modelFromList =
-          assistant.models?.find((model) => model.value.includes("gemma"))?.value ??
-          assistant.defaultModel ??
-          assistant.models?.[0]?.value;
-        if (!cancelled && modelFromList) {
-          setEmbedModelName(modelFromList);
-        }
-      } catch (error) {
-        console.error("Failed to load config:", error);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const langsmithApiKey = process.env.NEXT_PUBLIC_LANGSMITH_API_KEY || "";
   const assistant: Assistant = useMemo(
@@ -72,7 +35,7 @@ function EmbedPageContent() {
       updated_at: new Date().toISOString(),
       config: {
         configurable: {
-          LLM_MODEL: embedModelName,
+          LLM_MODEL: EMBED_LLM_MODEL,
           PROJECT: undefined
         }
       },
@@ -81,7 +44,7 @@ function EmbedPageContent() {
       name: "Embed Assistant",
       context: {}
     }),
-    [embedModelName]
+    []
   );
 
   if (!ready) return null;
