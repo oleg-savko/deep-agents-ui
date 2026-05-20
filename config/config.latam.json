@@ -72,6 +72,14 @@
         {
           "value": "litellm:openai/bedrock-nemotron-super-120b",
           "label": "litellm:openai/bedrock-nemotron-super-120b"
+        },
+        {
+          "value": "litellm:openai/gpt-5.4",
+          "label": "litellm:openai/gpt-5.4"
+        },
+        {
+          "value": "litellm:openai/gpt-5.4-mini",
+          "label": "litellm:openai/gpt-5.4-mini"
         }
       ]
     },

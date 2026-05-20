@@ -153,7 +153,7 @@
         "Для Jira <KEY>=MMRU-XXXX: собрать требования через spec-researcher (Jira links + Confluence + attachments).  Далее запустить qa-requirements-researcher. ВАЖНО: текст description для qa-requirements-researcher должен состоять РОВНО из двух частей:  byte-for-byte output spec-researcher (без каких-либо добавлений/удалений/правок), затем на новой строке ровно фраза: Сформируй итоговую QA документацию на русском языке. Запрещено добавлять любые другие слова/заголовки/ограничения/пояснения/разделители (включая “ONLY”, “START/END”, “markdown”, “не запрашивай контекст” и т.п.).  Результат qa-requirements-researcher сохранить byte-for-byte в файл: <Date>_<KEY>_QA_checklist.md."
       ],
       "defaultModel": "litellm:openai/gpt-5.4",
-      "aiGroups": ["/ai-group/admin"],
+      "aiGroups": ["/ai-group/admin", "/ai-group/it"],
       "models": [
         {
           "value": "litellm:openai/gpt-5.5",
@@ -247,7 +247,7 @@
         "Create a stakeholder-ready summary of this sprint retrospective"
       ],
       "defaultModel": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-      "aiGroups": ["/ai-group/admin"],
+      "aiGroups": ["/ai-group/admin", "/ai-group/it"],
       "models": [
         {
           "value": "litellm:openai/gpt-5.4-mini",
