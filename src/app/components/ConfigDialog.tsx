@@ -28,6 +28,33 @@ import { StandaloneConfig } from "@/lib/config";
 import { buildSubagentTemplatesByAssistantId } from "@/lib/subagentTemplates";
 import { cn } from "@/lib/utils";
 
+/** Registrable root domain (last two labels), e.g. "deep-agent-ui.moneyman.ru" -> "moneyman.ru". */
+function rootDomain(host: string): string {
+  const parts = host.split(".").filter(Boolean);
+  if (parts.length <= 2) return host;
+  return parts.slice(-2).join(".");
+}
+
+/**
+ * Keep only deployments whose URL host shares the current page's root domain.
+ * Falls back to all deployments when host can't be parsed (e.g. SSR / no window).
+ */
+function filterDeploymentsByHost(
+  deployments: Deployment[],
+  host: string | undefined,
+): Deployment[] {
+  if (!host) return deployments;
+  const current = rootDomain(host);
+  const matched = deployments.filter((d) => {
+    try {
+      return rootDomain(new URL(d.value).hostname) === current;
+    } catch {
+      return false;
+    }
+  });
+  return matched.length > 0 ? matched : deployments;
+}
+
 function validateSubagentOverridesJson(value: string): string | null {
   if (!value.trim()) {
     return null;
@@ -179,7 +206,12 @@ export function ConfigDialog({
         const response = await fetch("/api/config");
         if (response.ok) {
           const data = await response.json();
-          setDeployments(data.deployments || []);
+          setDeployments(
+            filterDeploymentsByHost(
+              data.deployments || [],
+              typeof window !== "undefined" ? window.location.hostname : undefined,
+            ),
+          );
           setProjects(data.projects || []);
           setAssistants(data.assistants || []);
           setSubagentModelOverrideTemplates(
