@@ -9,6 +9,14 @@
       "label": "[RU] Test Deployment"
     },
     {
+      "value": "https://deep-research-agent.idcollect.ru/",
+      "label": "[IDCOLLECT] Production Deployment"
+    },
+    {
+      "value": "https://deep-research-agent-test.idcollect.ru/",
+      "label": "[IDCOLLECT] Test Deployment"
+    },
+    {
       "value": "https://deep-research-agent.svoi.ru/",
       "label": "[SVOI] Production Deployment"
     },
