@@ -22,27 +22,27 @@
       "models": [
         {
           "value": "litellm:openai/bedrock-nemotron-super-120b",
-          "label": "litellm:openai/bedrock-nemotron-super-120b"
+          "label": "bedrock-nemotron-super-120b"
         },
         {
           "value": "litellm:openai/bedrock-nova-2-lite",
-          "label": "litellm:openai/bedrock-nova-2-lite"
+          "label": "bedrock-nova-2-lite"
         },
         {
           "value": "litellm:openai/bedrock-claude-haiku-4-5",
-          "label": "litellm:openai/bedrock-claude-haiku-4-5"
+          "label": "bedrock-claude-haiku-4-5"
         },
         {
           "value": "litellm:openai/bedrock-claude-sonnet-4-6",
-          "label": "litellm:openai/bedrock-claude-sonnet-4-6"
+          "label": "bedrock-claude-sonnet-4-6"
         },
         {
           "value": "litellm:openai/gpt-5.4",
-          "label": "litellm:openai/gpt-5.4"
+          "label": "gpt-5.4"
         },
         {
           "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
+          "label": "gpt-5.4-mini"
         }
       ],
       "subagentModelOverrideTemplates": {
@@ -59,7 +59,7 @@
       "models": [
         {
           "value": "litellm:openai/bedrock-nemotron-super-120b",
-          "label": "litellm:openai/bedrock-nemotron-super-120b"
+          "label": "bedrock-nemotron-super-120b"
         }
       ]
     },
@@ -71,15 +71,15 @@
       "models": [
         {
           "value": "litellm:openai/bedrock-nemotron-super-120b",
-          "label": "litellm:openai/bedrock-nemotron-super-120b"
+          "label": "bedrock-nemotron-super-120b"
         },
         {
           "value": "litellm:openai/gpt-5.4",
-          "label": "litellm:openai/gpt-5.4"
+          "label": "gpt-5.4"
         },
         {
           "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
+          "label": "gpt-5.4-mini"
         }
       ]
     },
@@ -94,11 +94,11 @@
       "models": [
         {
           "value": "litellm:openai/gpt-5.4",
-          "label": "litellm:openai/gpt-5.4"
+          "label": "gpt-5.4"
         },
         {
           "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
+          "label": "gpt-5.4-mini"
         }
       ]
     },
@@ -110,7 +110,7 @@
       "models": [
         {
           "value": "litellm:openai/bedrock-nemotron-super-120b",
-          "label": "litellm:openai/bedrock-nemotron-super-120b"
+          "label": "bedrock-nemotron-super-120b"
         }
       ]
     },
@@ -122,31 +122,31 @@
       "models": [
         {
           "value": "litellm:openai/bedrock-nemotron-super-120b",
-          "label": "litellm:openai/bedrock-nemotron-super-120b"
+          "label": "bedrock-nemotron-super-120b"
         },
         {
           "value": "litellm:openai/bedrock-nova-2-lite",
-          "label": "litellm:openai/bedrock-nova-2-lite"
+          "label": "bedrock-nova-2-lite"
         },
         {
           "value": "litellm:openai/bedrock-claude-haiku-4-5",
-          "label": "litellm:openai/bedrock-claude-haiku-4-5"
+          "label": "bedrock-claude-haiku-4-5"
         },
         {
           "value": "litellm:openai/bedrock-claude-sonnet-4-6",
-          "label": "litellm:openai/bedrock-claude-sonnet-4-6"
+          "label": "bedrock-claude-sonnet-4-6"
         },
         {
           "value": "litellm:openai/gpt-5.5",
-          "label": "litellm:openai/gpt-5.5"
+          "label": "gpt-5.5"
         },
         {
           "value": "litellm:openai/gpt-5.4",
-          "label": "litellm:openai/gpt-5.4"
+          "label": "gpt-5.4"
         },
         {
           "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
+          "label": "gpt-5.4-mini"
         }
       ],
       "subagentModelOverrideTemplates": {
@@ -162,7 +162,7 @@
       "models": [
         {
           "value": "litellm:openai/bedrock-nemotron-super-120b",
-          "label": "litellm:openai/bedrock-nemotron-super-120b"
+          "label": "bedrock-nemotron-super-120b"
         }
       ]
     }

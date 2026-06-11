@@ -59,6 +59,15 @@ function HomePageContent() {
   const [configAssistants, setConfigAssistants] = useState<
     { value: string; label: string; description?: string }[]
   >([]);
+  const [assistantModels, setAssistantModels] = useState<
+    Record<string, { value: string; label: string }[]>
+  >({});
+  const [assistantDefaultModels, setAssistantDefaultModels] = useState<
+    Record<string, string>
+  >({});
+  const [projectAvailableModels, setProjectAvailableModels] = useState<
+    Record<string, string[]>
+  >({});
 
   useEffect(() => {
     const savedConfig = getConfig();
@@ -91,16 +100,31 @@ function HomePageContent() {
           const descriptions: Record<string, string> = {};
           const labels: Record<string, string> = {};
           const exampleQuestions: Record<string, string[]> = {};
+          const models: Record<string, { value: string; label: string }[]> = {};
+          const defaultModels: Record<string, string> = {};
           for (const a of data.assistants ?? []) {
             if (a.description) descriptions[a.value] = a.description;
             if (a.label) labels[a.value] = a.label;
             if (Array.isArray(a.exampleQuestions) && a.exampleQuestions.length > 0) {
               exampleQuestions[a.value] = a.exampleQuestions;
             }
+            if (Array.isArray(a.models) && a.models.length > 0) {
+              models[a.value] = a.models;
+            }
+            if (a.defaultModel) defaultModels[a.value] = a.defaultModel;
           }
           setAssistantDescriptions(descriptions);
           setAssistantLabels(labels);
           setAssistantExampleQuestions(exampleQuestions);
+          setAssistantModels(models);
+          setAssistantDefaultModels(defaultModels);
+          const projModels: Record<string, string[]> = {};
+          for (const p of data.projects ?? []) {
+            if (Array.isArray(p.availableModels) && p.availableModels.length > 0) {
+              projModels[p.value] = p.availableModels;
+            }
+          }
+          setProjectAvailableModels(projModels);
           setConfigAssistants(
             (data.assistants ?? []).map(
               (a: { value: string; label?: string; description?: string }) => ({
@@ -138,6 +162,33 @@ function HomePageContent() {
     }
     return merged;
   }, [config, subagentTemplatesByAssistant]);
+
+  const availableModels = useMemo(() => {
+    if (!config) return [];
+    const models = assistantModels[config.assistantId] ?? [];
+    const allowed = config.project
+      ? projectAvailableModels[config.project]
+      : undefined;
+    if (!allowed?.length) return models;
+    const allowedSet = new Set(allowed);
+    return models.filter((m) => allowedSet.has(m.value));
+  }, [config, assistantModels, projectAvailableModels]);
+
+  // Keep llmModelName valid for the active assistant/project; fall back to
+  // assistant defaultModel (or first available) when current model is invalid.
+  useEffect(() => {
+    if (!config || availableModels.length === 0) return;
+    const has = (name: string) => availableModels.some((m) => m.value === name);
+    if (config.llmModelName && has(config.llmModelName)) return;
+    const fallback = assistantDefaultModels[config.assistantId];
+    const next =
+      fallback && has(fallback) ? fallback : availableModels[0]?.value;
+    if (next && next !== config.llmModelName) {
+      const updated = { ...config, llmModelName: next };
+      saveConfig(updated);
+      setConfig(updated);
+    }
+  }, [config, availableModels, assistantDefaultModels]);
 
   const debugMode = config?.showInternalSteps ?? false;
 
@@ -281,6 +332,60 @@ function HomePageContent() {
                   </Tooltip>
                 )}
               </div>
+              {availableModels.length > 0 && (
+                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <span className="font-medium">Model:</span>
+                  <Select
+                    value={config.llmModelName}
+                    onValueChange={(newModel) => {
+                      const updated = { ...config, llmModelName: newModel };
+                      handleSaveConfig(updated);
+                    }}
+                  >
+                    <SelectTrigger className="h-7 gap-1 border-none bg-transparent px-1.5 text-sm shadow-none focus:ring-0 [&>svg]:hidden">
+                      <SelectValue>
+                        <span className="block max-w-[180px] truncate">
+                          {availableModels.find(
+                            (m) => m.value === config.llmModelName,
+                          )?.label ?? config.llmModelName}
+                        </span>
+                      </SelectValue>
+                      <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                    </SelectTrigger>
+                    <SelectContent align="end" className="max-w-[320px]">
+                      {[
+                        ...availableModels,
+                        ...(config.llmModelName &&
+                        !availableModels.some(
+                          (m) => m.value === config.llmModelName,
+                        )
+                          ? [
+                              {
+                                value: config.llmModelName,
+                                label: config.llmModelName,
+                              },
+                            ]
+                          : []),
+                      ].map((m) => (
+                        <SelectPrimitive.Item
+                          key={m.value}
+                          value={m.value}
+                          className="relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pl-2 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                        >
+                          <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                            <SelectPrimitive.ItemIndicator>
+                              <Check className="h-4 w-4" />
+                            </SelectPrimitive.ItemIndicator>
+                          </span>
+                          <SelectPrimitive.ItemText>
+                            {m.label}
+                          </SelectPrimitive.ItemText>
+                        </SelectPrimitive.Item>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <Tooltip delayDuration={200}>
                 <TooltipTrigger asChild>
                   <div className="flex items-center gap-1.5">

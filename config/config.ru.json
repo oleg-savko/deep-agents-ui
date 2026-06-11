@@ -40,15 +40,15 @@
       "models": [
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+          "label": "Qwen3.6-27B-AWQ-INT4"
         },
         {
           "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
+          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
         },
         {
           "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
+          "label": "gpt-5.4-mini"
         }
       ]
     },
@@ -62,7 +62,7 @@
       "models": [
         {
           "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
+          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
         }
       ]
     },
@@ -75,11 +75,11 @@
       "models": [
         {
           "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
+          "label": "gpt-5.4-mini"
         },
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+          "label": "Qwen3.6-27B-AWQ-INT4"
         }
       ]
     },
@@ -92,11 +92,11 @@
       "models": [
         {
           "value": "litellm:openai/gpt-5.4",
-          "label": "litellm:openai/gpt-5.4"
+          "label": "gpt-5.4"
         },
         {
           "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
+          "label": "gpt-5.4-mini"
         }
       ],
       "subagentModelOverrideTemplates": {
@@ -115,19 +115,19 @@
       "models": [
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+          "label": "Qwen3.6-27B-AWQ-INT4"
         },
         {
           "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
+          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
         },
         {
           "value": "litellm:openai/gpt-5.4",
-          "label": "litellm:openai/gpt-5.4"
+          "label": "gpt-5.4"
         },
         {
           "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
+          "label": "gpt-5.4-mini"
         }
       ]
     },
@@ -141,15 +141,15 @@
       "models": [
         {
           "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
+          "label": "gpt-5.4-mini"
         },
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+          "label": "Qwen3.6-27B-AWQ-INT4"
         },
         {
           "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
+          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
         }
       ]
     },
@@ -165,19 +165,19 @@
       "models": [
         {
           "value": "litellm:openai/gpt-5.5",
-          "label": "litellm:openai/gpt-5.5"
+          "label": "gpt-5.5"
         },
         {
           "value": "litellm:openai/gpt-5.4",
-          "label": "litellm:openai/gpt-5.4"
+          "label": "gpt-5.4"
         },
         {
           "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
+          "label": "gpt-5.4-mini"
         },
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+          "label": "Qwen3.6-27B-AWQ-INT4"
         }
       ],
       "subagentModelOverrideTemplates": {
@@ -195,15 +195,15 @@
       "models": [
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+          "label": "Qwen3.6-27B-AWQ-INT4"
         },
         {
           "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
+          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
         },
         {
           "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
+          "label": "gpt-5.4-mini"
         }
       ]
     },
@@ -216,15 +216,15 @@
       "models": [
         {
           "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
+          "label": "gpt-5.4-mini"
         },
         {
           "value": "litellm:openai/gpt-5.4",
-          "label": "litellm:openai/gpt-5.4"
+          "label": "gpt-5.4"
         },
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+          "label": "Qwen3.6-27B-AWQ-INT4"
         }
       ]
     },
@@ -237,11 +237,30 @@
       "models": [
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+          "label": "Qwen3.6-27B-AWQ-INT4"
         },
         {
           "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
+          "label": "gpt-5.4-mini"
+        }
+      ]
+    },
+    {
+      "value": "sd_incident",
+      "label": "SD Incident Agent",
+      "description": "Jira Service Management incident-intake assistant for guided ticket creation.",
+      "exampleQuestions": [
+      ],
+      "aiGroups": ["/ai-group/admin", "/ai-group/sd_incident"],
+      "defaultModel": "litellm:openai/gpt-5.4",
+      "models": [
+        {
+          "value": "litellm:openai/gpt-5.4",
+          "label": "gpt-5.4"
+        },
+        {
+          "value": "litellm:openai/gpt-5.4-mini",
+          "label": "gpt-5.4-mini"
         }
       ]
     },
@@ -259,15 +278,15 @@
       "models": [
         {
           "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
+          "label": "gpt-5.4-mini"
         },
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+          "label": "Qwen3.6-27B-AWQ-INT4"
         },
         {
           "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
+          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
         }
       ]
     },
@@ -280,15 +299,15 @@
       "models": [
         {
           "value": "litellm:openai/gpt-5.4-mini",
-          "label": "litellm:openai/gpt-5.4-mini"
+          "label": "gpt-5.4-mini"
         },
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+          "label": "Qwen3.6-27B-AWQ-INT4"
         },
         {
           "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
+          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
         }
       ]
     },
@@ -301,11 +320,11 @@
       "models": [
         {
           "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
+          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
         },
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+          "label": "Qwen3.6-27B-AWQ-INT4"
         }
       ]
     },
@@ -318,11 +337,11 @@
       "models": [
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+          "label": "Qwen3.6-27B-AWQ-INT4"
         },
         {
           "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
+          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
         }
       ]
     }
