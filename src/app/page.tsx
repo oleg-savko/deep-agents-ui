@@ -174,17 +174,28 @@ function HomePageContent() {
     return models.filter((m) => allowedSet.has(m.value));
   }, [config, assistantModels, projectAvailableModels]);
 
-  // Keep llmModelName valid for the active assistant/project; fall back to
-  // assistant defaultModel (or first available) when current model is invalid.
+  // On assistant switch, force the assistant's defaultModel. Otherwise only
+  // correct the model when it's invalid for the current assistant/project.
+  const prevAssistantRef = React.useRef<string | null>(null);
   useEffect(() => {
     if (!config || availableModels.length === 0) return;
     const has = (name: string) => availableModels.some((m) => m.value === name);
-    if (config.llmModelName && has(config.llmModelName)) return;
+
+    const assistantChanged =
+      prevAssistantRef.current !== null &&
+      prevAssistantRef.current !== config.assistantId;
+    prevAssistantRef.current = config.assistantId;
+
     const fallback = assistantDefaultModels[config.assistantId];
-    const next =
+    const desired =
       fallback && has(fallback) ? fallback : availableModels[0]?.value;
-    if (next && next !== config.llmModelName) {
-      const updated = { ...config, llmModelName: next };
+
+    // Same assistant with a still-valid model: leave it alone.
+    if (!assistantChanged && config.llmModelName && has(config.llmModelName)) {
+      return;
+    }
+    if (desired && desired !== config.llmModelName) {
+      const updated = { ...config, llmModelName: desired };
       saveConfig(updated);
       setConfig(updated);
     }
@@ -284,7 +295,12 @@ function HomePageContent() {
                 <Select
                   value={config.assistantId}
                   onValueChange={(newId) => {
-                    const updated = { ...config, assistantId: newId };
+                    const updated = {
+                      ...config,
+                      assistantId: newId,
+                      llmModelName:
+                        assistantDefaultModels[newId] ?? config.llmModelName,
+                    };
                     handleSaveConfig(updated);
                     setThreadId(null);
                   }}

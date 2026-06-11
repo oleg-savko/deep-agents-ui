@@ -333,6 +333,13 @@ export function ConfigDialog({
                 setSubagentModelOverridesError(
                   validateSubagentOverridesJson(editor),
                 );
+                // Switch to the new assistant's default model.
+                const newAssistant = assistants.find(
+                  (a) => a.value === newAssistantId,
+                );
+                if (newAssistant?.defaultModel) {
+                  setLlmModelName(newAssistant.defaultModel);
+                }
                 setAssistantId(newAssistantId);
               }}
             >
