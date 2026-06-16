@@ -14,6 +14,31 @@ import { MarkdownContent } from "@/app/components/MarkdownContent";
 import type { FileItem } from "@/app/types/types";
 import useSWRMutation from "swr/mutation";
 
+// Non-text, non-pdf, non-image binary types → download-only preview, with the
+// MIME used to build a valid download Blob.
+const BINARY_MIME_MAP: Record<string, string> = {
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  xls: "application/vnd.ms-excel",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  doc: "application/msword",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ppt: "application/vnd.ms-powerpoint",
+  zip: "application/zip",
+};
+
+// Styles for the SheetJS-generated spreadsheet tables (sheet_to_html output).
+const XLSX_PREVIEW_CSS = `
+.xlsx-preview .sheet-name { font-size: 0.8rem; font-weight: 600; color: #266BD1;
+  margin: 1rem 0 0.4rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.xlsx-preview .sheet-name:first-child { margin-top: 0; }
+.xlsx-preview table { border-collapse: collapse; width: max-content; min-width: 100%;
+  font-size: 0.78rem; margin-bottom: 1rem; }
+.xlsx-preview td, .xlsx-preview th { border: 1px solid var(--color-border, #e3ebf7);
+  padding: 4px 8px; white-space: nowrap; vertical-align: top; }
+.xlsx-preview tr:first-child td { background: rgba(38,107,209,0.10);
+  font-weight: 600; position: sticky; top: 0; }
+`;
+
 const LANGUAGE_MAP: Record<string, string> = {
   js: "javascript",
   jsx: "javascript",
@@ -87,14 +112,62 @@ export const FileViewDialog = React.memo<{
     return fileExtension === "md" || fileExtension === "markdown";
   }, [fileExtension]);
 
-  // PDFs are stored base64-encoded (FileData encoding="base64"); render them as
-  // a binary document (iframe preview + binary download) rather than as text.
+  // Binary files are stored base64-encoded (FileData encoding="base64"). Render
+  // them per type (PDF/image inline; others download-only) instead of as text.
   const isPdf = useMemo(() => fileExtension === "pdf", [fileExtension]);
+  const isImage = useMemo(
+    () => ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"].includes(fileExtension),
+    [fileExtension]
+  );
+  const isSpreadsheet = useMemo(
+    () => ["xlsx", "xls"].includes(fileExtension),
+    [fileExtension]
+  );
+  const binaryMime = useMemo(
+    () => BINARY_MIME_MAP[fileExtension] || null,
+    [fileExtension]
+  );
+  const isBinary = isPdf || isImage || binaryMime !== null;
 
   const pdfDataUrl = useMemo(
     () => (isPdf && fileContent ? `data:application/pdf;base64,${fileContent}` : null),
     [isPdf, fileContent]
   );
+  const imageDataUrl = useMemo(() => {
+    if (!isImage || !fileContent) return null;
+    const mime = fileExtension === "svg" ? "image/svg+xml" : `image/${fileExtension === "jpg" ? "jpeg" : fileExtension}`;
+    return `data:${mime};base64,${fileContent}`;
+  }, [isImage, fileContent, fileExtension]);
+
+  // Spreadsheet preview: parse the base64 workbook to HTML tables (one per sheet)
+  // via SheetJS, loaded lazily so it never enters the main bundle.
+  const [sheetHtml, setSheetHtml] = useState<string | null>(null);
+  const [sheetError, setSheetError] = useState(false);
+  useEffect(() => {
+    if (!isSpreadsheet || !fileContent) {
+      setSheetHtml(null);
+      setSheetError(false);
+      return;
+    }
+    let cancelled = false;
+    setSheetHtml(null);
+    setSheetError(false);
+    import("xlsx")
+      .then((XLSX) => {
+        const wb = XLSX.read(fileContent, { type: "base64" });
+        const parts = wb.SheetNames.map((name) => {
+          const html = XLSX.utils.sheet_to_html(wb.Sheets[name], { id: "" });
+          return `<h3 class="sheet-name">${name}</h3>${html}`;
+        });
+        if (!cancelled) setSheetHtml(parts.join("\n"));
+      })
+      .catch(() => {
+        if (!cancelled) setSheetError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isSpreadsheet, fileContent]);
 
   const language = useMemo(() => {
     return LANGUAGE_MAP[fileExtension] || "text";
@@ -109,13 +182,18 @@ export const FileViewDialog = React.memo<{
   const handleDownload = useCallback(() => {
     if (!fileContent || !fileName) return;
     let blob: Blob;
-    if (isPdf) {
-      // Decode base64 → binary bytes for a valid PDF download.
+    if (isBinary) {
+      // base64 → bytes for a valid binary download (pdf/image/xlsx/…).
+      const mime = isPdf
+        ? "application/pdf"
+        : isImage
+          ? (imageDataUrl?.slice(5, imageDataUrl.indexOf(";")) ?? "application/octet-stream")
+          : (binaryMime ?? "application/octet-stream");
       try {
         const binary = atob(fileContent);
         const bytes = new Uint8Array(binary.length);
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        blob = new Blob([bytes], { type: "application/pdf" });
+        blob = new Blob([bytes], { type: mime });
       } catch {
         return;
       }
@@ -130,7 +208,7 @@ export const FileViewDialog = React.memo<{
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [fileContent, fileName, isPdf]);
+  }, [fileContent, fileName, isBinary, isPdf, isImage, imageDataUrl, binaryMime]);
 
   const handleEdit = useCallback(() => {
     setIsEditingMode(true);
@@ -183,7 +261,7 @@ export const FileViewDialog = React.memo<{
           <div className="flex shrink-0 items-center gap-1">
             {!isEditingMode && (
               <>
-                {!isPdf && (
+                {!isBinary && (
                   <>
                     <Button
                       onClick={handleEdit}
@@ -241,6 +319,56 @@ export const FileViewDialog = React.memo<{
                 <p className="text-sm text-muted-foreground">File is empty</p>
               </div>
             )
+          ) : isImage ? (
+            imageDataUrl ? (
+              <div className="flex h-full items-center justify-center overflow-auto p-4">
+                <img
+                  src={imageDataUrl}
+                  alt={file?.path || "image"}
+                  className="max-h-full max-w-full rounded-md object-contain"
+                />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center p-12">
+                <p className="text-sm text-muted-foreground">File is empty</p>
+              </div>
+            )
+          ) : isSpreadsheet ? (
+            sheetHtml !== null ? (
+              <ScrollArea className="bg-surface h-full rounded-md">
+                <style>{XLSX_PREVIEW_CSS}</style>
+                <div
+                  className="xlsx-preview p-4"
+                  dangerouslySetInnerHTML={{ __html: sheetHtml }}
+                />
+              </ScrollArea>
+            ) : sheetError ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3 p-12 text-center">
+                <FileText className="h-10 w-10 text-primary/40" />
+                <p className="text-sm text-muted-foreground">
+                  Could not preview this spreadsheet. Use Download to open it.
+                </p>
+                <Button onClick={handleDownload} size="sm">
+                  <Download size={16} className="mr-1" />
+                  Download
+                </Button>
+              </div>
+            ) : (
+              <div className="flex h-full items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            )
+          ) : isBinary ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-12 text-center">
+              <FileText className="h-10 w-10 text-primary/40" />
+              <p className="text-sm text-muted-foreground">
+                Preview not available for this file type. Use Download to open it.
+              </p>
+              <Button onClick={handleDownload} size="sm">
+                <Download size={16} className="mr-1" />
+                Download
+              </Button>
+            </div>
           ) : isEditingMode ? (
             <Textarea
               value={fileContent}

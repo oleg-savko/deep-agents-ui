@@ -136,6 +136,7 @@ interface ChatMessageProps {
   subAgentRunsByTaskId?: Record<string, SubAgentRun>;
   onRestartFromAIMessage: (message: Message) => void;
   onRestartFromSubTask: (toolCallId: string) => void;
+  onPreviewFile?: (name: string) => void;
   debugMode?: boolean;
   isLastMessage?: boolean;
   isLoading?: boolean;
@@ -154,6 +155,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(
     subAgentRunsByTaskId,
     onRestartFromAIMessage,
     onRestartFromSubTask,
+    onPreviewFile,
     debugMode,
     isLastMessage,
     isLoading,
@@ -279,7 +281,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                     : undefined
                 }
               >
-                {hasAttachments && (
+                {displayImageUrls.length > 0 && (
                   <div className="mb-2 flex flex-wrap gap-2">
                     {displayImageUrls.map((url, idx) => (
                       <a
@@ -295,15 +297,6 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                           className="max-h-48 max-w-full rounded-md border border-border object-contain"
                         />
                       </a>
-                    ))}
-                    {fileAttachments.map((file, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center gap-1.5 rounded-md border border-border bg-background/50 px-2 py-1 text-xs"
-                      >
-                        <FileIcon size={12} className="flex-shrink-0 text-muted-foreground" />
-                        <span className="max-w-[200px] truncate font-medium">{file.name}</span>
-                      </div>
                     ))}
                   </div>
                 )}
@@ -326,6 +319,22 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                     <MarkdownContent content={aiMarkdownForDisplay} />
                   )
                 ) : null}
+                {fileAttachments.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {fileAttachments.map((file, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => onPreviewFile?.(file.name)}
+                        title={`Preview ${file.name}`}
+                        className="flex items-center gap-1.5 rounded-md border border-[#266BD1]/40 bg-[#266BD1]/15 px-2 py-1 text-xs text-[#266BD1] transition-colors hover:bg-[#266BD1]/25"
+                      >
+                        <FileIcon size={12} className="flex-shrink-0" />
+                        <span className="max-w-[200px] truncate font-medium">{file.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               {debugMode && isAIMessage && !(isLastMessage && isLoading) && (
                 <button

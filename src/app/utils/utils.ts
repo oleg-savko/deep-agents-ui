@@ -6,6 +6,22 @@ import { twMerge } from "tailwind-merge";
 /** Prefix for inline file blocks in multimodal message content (matches useChat attachment encoding). */
 const FILE_ATTACHMENT_PREFIX = "--- File: ";
 
+/** Prefix for the document-upload marker text block (matches useChat encoding). */
+const UPLOADED_FILE_PREFIX = "[Uploaded file: ";
+
+/**
+ * Parse the filename out of a document-upload marker block, e.g.
+ * `[Uploaded file: report.xlsx - use parse_document_file("uploads/report.xlsx") to extract its text.]`.
+ * Returns null when the text is not such a marker.
+ */
+function parseUploadedFileName(text: string): string | null {
+  if (!text.startsWith(UPLOADED_FILE_PREFIX)) return null;
+  const rest = text.slice(UPLOADED_FILE_PREFIX.length);
+  const end = rest.indexOf(" - use parse_document_file(");
+  const name = (end === -1 ? rest.replace(/\]$/, "") : rest.slice(0, end)).trim();
+  return name || "document";
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -388,30 +404,32 @@ export function extractFileAttachmentsFromMessageContent(
   message: Message
 ): FileAttachmentBlock[] {
   if (!Array.isArray(message.content)) return [];
-  return message.content
-    .filter(
-      (c: any) =>
-        typeof c === "object" &&
-        c !== null &&
-        c.type === "text" &&
-        typeof c.text === "string" &&
-        c.text.startsWith(FILE_ATTACHMENT_PREFIX)
-    )
-    .map((c: any) => {
-      const text = c.text as string;
+  const out: FileAttachmentBlock[] = [];
+  for (const c of message.content as any[]) {
+    if (typeof c !== "object" || c === null || c.type !== "text" || typeof c.text !== "string") {
+      continue;
+    }
+    const text = c.text as string;
+    if (text.startsWith(FILE_ATTACHMENT_PREFIX)) {
       // Parse "--- File: name (base64) ---\n..." or "--- File: name ---\n..."
       const headerEnd = text.indexOf(" ---\n");
       if (headerEnd === -1) {
-        return { name: "unknown", content: text, isBinary: false };
+        out.push({ name: "unknown", content: text, isBinary: false });
+        continue;
       }
       const header = text.slice(FILE_ATTACHMENT_PREFIX.length, headerEnd);
       const isBinary = header.endsWith(" (base64)");
-      const name = isBinary
-        ? header.slice(0, -" (base64)".length)
-        : header;
-      const content = text.slice(headerEnd + " ---\n".length);
-      return { name, content, isBinary };
-    });
+      const name = isBinary ? header.slice(0, -" (base64)".length) : header;
+      out.push({ name, content: text.slice(headerEnd + " ---\n".length), isBinary });
+      continue;
+    }
+    // Document-upload marker (xlsx/pdf/docx parsed server-side): show as a chip.
+    const uploadedName = parseUploadedFileName(text);
+    if (uploadedName) {
+      out.push({ name: uploadedName, content: "", isBinary: true });
+    }
+  }
+  return out;
 }
 
 /**
@@ -427,7 +445,8 @@ export function extractUserTextFromMessageContent(message: Message): string {
           c !== null &&
           c.type === "text" &&
           typeof c.text === "string" &&
-          !c.text.startsWith(FILE_ATTACHMENT_PREFIX)) ||
+          !c.text.startsWith(FILE_ATTACHMENT_PREFIX) &&
+          !c.text.startsWith(UPLOADED_FILE_PREFIX)) ||
         typeof c === "string"
     )
     .map((c: any) => (typeof c === "string" ? c : c.text || ""))

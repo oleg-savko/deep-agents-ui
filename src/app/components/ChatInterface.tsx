@@ -25,7 +25,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { ChatMessage } from "@/app/components/ChatMessage";
-import type { Attachment, SubAgentRun, TodoItem, ToolCall } from "@/app/types/types";
+import type { Attachment, FileItem, SubAgentRun, TodoItem, ToolCall } from "@/app/types/types";
+import { FileViewDialog } from "@/app/components/FileViewDialog";
 import { Assistant, Message } from "@langchain/langgraph-sdk";
 import {
   extractImagesFromMessageContent,
@@ -197,6 +198,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     const [threadId] = useQueryState("threadId");
     const [agentId] = useQueryState("agentId");
     const [metaOpen, setMetaOpen] = useState<"tasks" | "files" | null>(null);
+    const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
     const tasksContainerRef = useRef<HTMLDivElement | null>(null);
     const [isWorkflowView, setIsWorkflowView] = useState(false);
     const isMountedRef = useRef(true);
@@ -458,6 +460,37 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     const isUploadingAttachments = loadingAttachmentIds.size > 0;
     const submitDisabled = isLoading || isUploadingAttachments || !assistant;
     const hasAttachments = attachments.length > 0;
+
+    // Resolve a chat file-chip name to its entry in `files` state and open the
+    // preview dialog. Uploads live under `uploads/<name>`; fall back to a direct
+    // or suffix match.
+    const handlePreviewFile = useCallback(
+      (name: string) => {
+        const current = files ?? {};
+        const key =
+          (`uploads/${name}` in current && `uploads/${name}`) ||
+          (name in current && name) ||
+          Object.keys(current).find((k) => k.endsWith(`/${name}`));
+        if (!key) return;
+        const raw = (current as Record<string, unknown>)[key];
+        let content: string;
+        if (raw && typeof raw === "object" && "content" in raw) {
+          const c = (raw as { content: unknown }).content;
+          content = Array.isArray(c) ? c.join("\n") : String(c ?? "");
+        } else {
+          content = String(raw ?? "");
+        }
+        setPreviewFile({ path: name, content });
+      },
+      [files]
+    );
+
+    const handleSavePreviewFile = useCallback(
+      async (fileName: string, content: string) => {
+        await setFiles({ ...(files ?? {}), [`uploads/${fileName}`]: content });
+      },
+      [files, setFiles]
+    );
 
     // Bridge for child MCP-app iframes (e.g. jira_required_fields_ui submit)
     // to post a user message into the conversation without prop-drilling
@@ -1103,6 +1136,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                       subAgentRunsByTaskId={subAgentRunsByTaskId}
                       onRestartFromAIMessage={handleRestartFromAIMessage}
                       onRestartFromSubTask={handleRestartFromSubTask}
+                      onPreviewFile={handlePreviewFile}
                       debugMode={debugMode}
                       isLoading={isLoading}
                       isLastMessage={index === processedMessages.length - 1}
@@ -1491,6 +1525,14 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
             </div>
           )}
         </div>
+        {previewFile && (
+          <FileViewDialog
+            file={previewFile}
+            onSaveFile={handleSavePreviewFile}
+            onClose={() => setPreviewFile(null)}
+            editDisabled={isLoading}
+          />
+        )}
       </div>
     );
   }
