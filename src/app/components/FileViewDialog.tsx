@@ -87,6 +87,15 @@ export const FileViewDialog = React.memo<{
     return fileExtension === "md" || fileExtension === "markdown";
   }, [fileExtension]);
 
+  // PDFs are stored base64-encoded (FileData encoding="base64"); render them as
+  // a binary document (iframe preview + binary download) rather than as text.
+  const isPdf = useMemo(() => fileExtension === "pdf", [fileExtension]);
+
+  const pdfDataUrl = useMemo(
+    () => (isPdf && fileContent ? `data:application/pdf;base64,${fileContent}` : null),
+    [isPdf, fileContent]
+  );
+
   const language = useMemo(() => {
     return LANGUAGE_MAP[fileExtension] || "text";
   }, [fileExtension]);
@@ -98,18 +107,30 @@ export const FileViewDialog = React.memo<{
   }, [fileContent]);
 
   const handleDownload = useCallback(() => {
-    if (fileContent && fileName) {
-      const blob = new Blob([fileContent], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+    if (!fileContent || !fileName) return;
+    let blob: Blob;
+    if (isPdf) {
+      // Decode base64 → binary bytes for a valid PDF download.
+      try {
+        const binary = atob(fileContent);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        blob = new Blob([bytes], { type: "application/pdf" });
+      } catch {
+        return;
+      }
+    } else {
+      blob = new Blob([fileContent], { type: "text/plain" });
     }
-  }, [fileContent, fileName]);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [fileContent, fileName, isPdf]);
 
   const handleEdit = useCallback(() => {
     setIsEditingMode(true);
@@ -162,31 +183,35 @@ export const FileViewDialog = React.memo<{
           <div className="flex shrink-0 items-center gap-1">
             {!isEditingMode && (
               <>
-                <Button
-                  onClick={handleEdit}
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2"
-                  disabled={editDisabled}
-                >
-                  <Edit
-                    size={16}
-                    className="mr-1"
-                  />
-                  Edit
-                </Button>
-                <Button
-                  onClick={handleCopy}
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2"
-                >
-                  <Copy
-                    size={16}
-                    className="mr-1"
-                  />
-                  Copy
-                </Button>
+                {!isPdf && (
+                  <>
+                    <Button
+                      onClick={handleEdit}
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2"
+                      disabled={editDisabled}
+                    >
+                      <Edit
+                        size={16}
+                        className="mr-1"
+                      />
+                      Edit
+                    </Button>
+                    <Button
+                      onClick={handleCopy}
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2"
+                    >
+                      <Copy
+                        size={16}
+                        className="mr-1"
+                      />
+                      Copy
+                    </Button>
+                  </>
+                )}
                 <Button
                   onClick={handleDownload}
                   variant="ghost"
@@ -204,7 +229,19 @@ export const FileViewDialog = React.memo<{
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-hidden">
-          {isEditingMode ? (
+          {isPdf ? (
+            pdfDataUrl ? (
+              <iframe
+                src={pdfDataUrl}
+                title={file?.path || "PDF"}
+                className="h-full w-full rounded-md border border-border"
+              />
+            ) : (
+              <div className="flex items-center justify-center p-12">
+                <p className="text-sm text-muted-foreground">File is empty</p>
+              </div>
+            )
+          ) : isEditingMode ? (
             <Textarea
               value={fileContent}
               onChange={(e) => setFileContent(e.target.value)}
