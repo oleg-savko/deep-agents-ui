@@ -13,7 +13,7 @@ import type { Attachment, TodoItem } from "@/app/types/types";
 import { useClient } from "@/providers/ClientProvider";
 import { useAuthHeader } from "@/providers/AuthHeaderProvider";
 import { HumanResponse } from "@/app/types/inbox";
-import { isImageFile, resolveImageMimeType } from "@/app/utils/utils";
+import { isImageFile } from "@/app/utils/utils";
 import { useQueryState } from "nuqs";
 
 export type StateType = {
@@ -143,10 +143,7 @@ export function useChat({
       const hasDocumentAttachments = documentAttachments.length > 0;
 
       if (hasInlineAttachments || hasDocumentAttachments) {
-        const contentBlocks: Array<
-          | { type: "text"; text: string }
-          | { type: "image_url"; image_url: { url: string } }
-        > = [];
+        const contentBlocks: Array<{ type: "text"; text: string }> = [];
 
         // Add user text if present
         if (content.trim()) {
@@ -156,18 +153,12 @@ export function useChat({
         // Add inline attachment blocks (images, text files)
         for (const attachment of inlineAttachments) {
           if (isImageFile(attachment.type, attachment.name)) {
-            const mime =
-              resolveImageMimeType(attachment.type, attachment.name) ??
-              "image/png";
-            contentBlocks.push({
-              type: "image_url",
-              image_url: {
-                url: `data:${mime};base64,${attachment.content}`,
-              },
-            });
-            // The image_url block is vision-only — the model can't re-encode it
-            // to base64. Reference the saved path so it can attach the file via
-            // jira_add_attachment_file (matches the MS/VK bot upload markers).
+            // Attach-only: images go to uploads/<name> (above) and are referenced
+            // by path so the agent can attach them via jira_add_attachment_file.
+            // We do NOT send an image_url vision block — the agents' models are
+            // not guaranteed to be vision-capable (Azure returns a hard 400
+            // "unsupported image" on non-vision deployments, breaking the run),
+            // and the goal is to attach the file, not have the model see it.
             contentBlocks.push({
               type: "text",
               text: `[Uploaded file: uploads/${attachment.name} — use jira_add_attachment_file(issue_key, "uploads/${attachment.name}") to attach it to a Jira issue.]`,
