@@ -110,13 +110,25 @@ export function useChat({
         }
       }
 
-      // Build document files map for state update
+      // Images are sent inline so the model can SEE them (image_url block), but
+      // their bytes must ALSO be exposed as uploads/<name> files: an image_url
+      // block is vision-only and the model cannot re-encode it back to base64,
+      // so without this the agent can never forward a pasted screenshot to
+      // jira_add_attachment.
+      const imageAttachments = inlineAttachments.filter((a) =>
+        isImageFile(a.type, a.name)
+      );
+
+      // Build files map for state update (parsed documents + raw image bytes).
       let documentFiles: Record<string, string> | null = null;
-      if (documentAttachments.length > 0) {
+      if (documentAttachments.length > 0 || imageAttachments.length > 0) {
         const currentFiles = stream.values.files ?? {};
         documentFiles = { ...currentFiles };
         for (const doc of documentAttachments) {
           documentFiles[`uploads/${doc.name}`] = doc.content;
+        }
+        for (const img of imageAttachments) {
+          documentFiles[`uploads/${img.name}`] = img.content;
         }
 
         // If thread exists, update state before sending message
@@ -152,6 +164,13 @@ export function useChat({
               image_url: {
                 url: `data:${mime};base64,${attachment.content}`,
               },
+            });
+            // The image_url block is vision-only — the model can't re-encode it
+            // to base64. Reference the saved path so it can attach the file via
+            // jira_add_attachment_file (matches the MS/VK bot upload markers).
+            contentBlocks.push({
+              type: "text",
+              text: `[Uploaded file: uploads/${attachment.name} — use jira_add_attachment_file(issue_key, "uploads/${attachment.name}") to attach it to a Jira issue.]`,
             });
           } else {
             const isBinary = !attachment.type.startsWith("text/");
