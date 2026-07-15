@@ -37,13 +37,19 @@ function rootDomain(host: string): string {
 
 /**
  * Keep only deployments whose URL host shares the current page's root domain.
- * Falls back to all deployments when host can't be parsed (e.g. SSR / no window).
+ * Falls back to all deployments when host can't be parsed (e.g. SSR / no window)
+ * or on localhost dev, where every deployment (incl. remote ones) must stay
+ * selectable for testing.
  */
 function filterDeploymentsByHost(
   deployments: Deployment[],
   host: string | undefined,
 ): Deployment[] {
   if (!host) return deployments;
+  const bare = host.toLowerCase().replace(/^\[|\]$/g, "");
+  if (bare === "localhost" || bare === "127.0.0.1" || bare === "::1") {
+    return deployments;
+  }
   const current = rootDomain(host);
   const matched = deployments.filter((d) => {
     try {

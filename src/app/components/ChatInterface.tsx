@@ -147,6 +147,58 @@ function readFileAsAttachment(file: File): Promise<Attachment> {
   });
 }
 
+const CONNECTIVITY_RE =
+  /failed to fetch|network\s?error|load failed|fetch failed|err_|abort|timeout/i;
+
+/**
+ * Turn a stream error into a user-facing message. The LangGraph SDK rejects
+ * non-2xx responses with the raw `Response` object, so read its status + body
+ * (incl. 5xx) instead of printing "[object Response]".
+ */
+async function describeStreamError(
+  err: unknown
+): Promise<{ connectivity: boolean; message: string }> {
+  if (typeof Response !== "undefined" && err instanceof Response) {
+    const status = `${err.status}${err.statusText ? ` ${err.statusText}` : ""}`;
+    let detail = "";
+    try {
+      const body = err.bodyUsed ? "" : await err.clone().text();
+      detail = body.trim();
+      try {
+        const parsed = JSON.parse(detail);
+        detail = String(
+          parsed.detail ?? parsed.message ?? parsed.error ?? detail
+        );
+      } catch {
+        /* body is not JSON — keep the raw text */
+      }
+    } catch {
+      /* body unreadable */
+    }
+    return {
+      connectivity: false,
+      message: detail ? `${status} — ${detail.slice(0, 300)}` : status,
+    };
+  }
+  const message = err instanceof Error ? err.message : String(err ?? "");
+  return { connectivity: CONNECTIVITY_RE.test(message), message };
+}
+
+/** Toast an agent error: VPN hint for connectivity drops, else `prefix: detail`. */
+function notifyAgentError(err: unknown, prefix: string): void {
+  void describeStreamError(err).then(({ connectivity, message }) => {
+    toast.error(
+      connectivity
+        ? "Lost connection to the agent. Check that your VPN is connected and you're on the corporate network, then try again."
+        : `${prefix}: ${message || "unknown error"}`,
+      {
+        id: connectivity ? "agent-offline" : "agent-run-error",
+        duration: 8000,
+      }
+    );
+  });
+}
+
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -423,6 +475,20 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       responseDurationByAiMessageId,
     } = useChatContext();
 
+    // Surface a run failure the moment the stream errors — a connectivity drop
+    // gets the VPN hint (sharing the `agent-offline` toast id with the
+    // page-level probe); an HTTP error (incl. 5xx) shows its status + detail.
+    const prevStreamErrorRef = useRef<unknown>(undefined);
+    useEffect(() => {
+      const err = stream.error;
+      if (!err || err === prevStreamErrorRef.current) {
+        prevStreamErrorRef.current = err;
+        return;
+      }
+      prevStreamErrorRef.current = err;
+      notifyAgentError(err, "The agent returned an error");
+    }, [stream.error]);
+
     const subAgentRunsCacheRef = useRef<Record<string, SubAgentRun>>({});
 
     useEffect(() => {
@@ -510,7 +576,10 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           return;
         }
         try {
-          sendMessage(detail.text);
+          void sendMessage(detail.text).catch((err) => {
+            notifyAgentError(err, "Couldn't send your message");
+            detail.reject?.(err);
+          });
           detail.resolve?.();
         } catch (err) {
           detail.reject?.(err);
@@ -530,10 +599,10 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
         const messageText = input.trim();
         if ((!messageText && !hasAttachments) || isLoading) return;
 
-        sendMessage(
+        void sendMessage(
           messageText,
           hasAttachments ? attachments : undefined
-        );
+        ).catch((err) => notifyAgentError(err, "Couldn't send your message"));
 
         setInput("");
         setAttachments([]);

@@ -273,6 +273,35 @@
           "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
         }
       ]
+    },
+    {
+      "value": "ai_history_review",
+      "label": "AI History Review Agent",
+      "description": "Reviews one completed AI-assisted task: retrieves the executor's AI session history from GitLab, cross-checks Jira estimates/time/AI-savings and the shipped diff, and produces a lead/architect review report with mentor coaching examples.",
+      "exampleQuestions": [
+        "Do a history review for task MMRU-1234",
+        "Do a history review for task MMRU-1234 and publish the report to Confluence"
+      ],
+      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+      "aiGroups": ["/MMRU/ai-group/admin"],
+      "models": [
+        {
+          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+          "label": "Qwen3.6-27B-AWQ-INT4"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-v4-flash",
+          "label": "deepseek-v4-flash"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-v4-pro",
+          "label": "deepseek-v4-pro"
+        },
+        {
+          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
+          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
+        }
+      ]
     }
   ],
   "projects": [

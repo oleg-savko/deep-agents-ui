@@ -34,6 +34,10 @@ import {
 import { ThreadList } from "@/app/components/ThreadList";
 import { ChatProvider } from "@/providers/ChatProvider";
 import { ChatInterface } from "@/app/components/ChatInterface";
+import { AccessNotice, type AccessInfo } from "@/app/components/AccessNotice";
+import { ConnectivityBanner } from "@/app/components/ConnectivityBanner";
+import { useAgentHealth, type AgentHealth } from "@/app/hooks/useAgentHealth";
+import { toast } from "sonner";
 
 function HomePageContent() {
   const [config, setConfig] = useState<StandaloneConfig | null>(null);
@@ -68,6 +72,7 @@ function HomePageContent() {
   const [projectAvailableModels, setProjectAvailableModels] = useState<
     Record<string, string[]>
   >({});
+  const [accessInfo, setAccessInfo] = useState<AccessInfo | null>(null);
 
   useEffect(() => {
     const savedConfig = getConfig();
@@ -134,6 +139,20 @@ function HomePageContent() {
               }),
             ),
           );
+          const access: AccessInfo | undefined = data._access;
+          if (access) {
+            setAccessInfo(access);
+            if (access.visibleAssistants === 0) {
+              const roleProblem =
+                access.authenticated && access.totalAssistants > 0;
+              toast.error(
+                roleProblem
+                  ? "No assistants available for your account. You need an appropriate AI access role in Keycloak — contact your administrator."
+                  : "No assistants are available. Contact your administrator.",
+                { id: "no-access", duration: 12000 },
+              );
+            }
+          }
         }
       } catch {
         /* ignore */
@@ -201,6 +220,33 @@ function HomePageContent() {
     }
   }, [config, availableModels, assistantDefaultModels]);
 
+  const agentHealth = useAgentHealth(config?.deploymentUrl);
+
+  // Alert on health transitions; the banner stays as the persistent cue.
+  const prevHealthRef = React.useRef<AgentHealth>("checking");
+  useEffect(() => {
+    const prev = prevHealthRef.current;
+    const s = agentHealth.status;
+    if (s === "offline" && prev !== "offline") {
+      toast.error(
+        "Can't reach the agent. Check that your VPN is connected and you're on the corporate network.",
+        { id: "agent-offline", duration: 8000 },
+      );
+    } else if (s === "unhealthy" && prev !== "unhealthy") {
+      toast.error(
+        "The agent is reachable but its health check failed — it may be starting up or a dependency is down.",
+        { id: "agent-offline", duration: 8000 },
+      );
+    } else if (s === "online" && (prev === "offline" || prev === "unhealthy")) {
+      toast.dismiss("agent-offline");
+      toast.success("Reconnected to the agent.", {
+        id: "agent-online",
+        duration: 4000,
+      });
+    }
+    prevHealthRef.current = s;
+  }, [agentHealth.status]);
+
   const debugMode = config?.showInternalSteps ?? false;
 
   const handleToggleInternalSteps = (checked: boolean) => {
@@ -209,6 +255,23 @@ function HomePageContent() {
     saveConfig(updated);
     setConfig(updated);
   };
+
+  if (accessInfo && accessInfo.visibleAssistants === 0) {
+    return (
+      <>
+        <ConfigDialog
+          open={configDialogOpen}
+          onOpenChange={setConfigDialogOpen}
+          onSave={handleSaveConfig}
+          initialConfig={config ?? undefined}
+        />
+        <AccessNotice
+          access={accessInfo}
+          onOpenSettings={() => setConfigDialogOpen(true)}
+        />
+      </>
+    );
+  }
 
   if (!config) {
     return (
@@ -443,6 +506,15 @@ function HomePageContent() {
               </Button>
             </div>
           </header>
+
+          {(agentHealth.status === "offline" ||
+            agentHealth.status === "unhealthy") && (
+            <ConnectivityBanner
+              mode={agentHealth.status}
+              checking={agentHealth.revalidating}
+              onRetry={agentHealth.retry}
+            />
+          )}
 
           <div className="flex-1 overflow-hidden">
             <ResizablePanelGroup

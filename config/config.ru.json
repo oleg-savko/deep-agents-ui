@@ -45,10 +45,6 @@
         {
           "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
           "label": "gemma-4-26B-A4B-it-AWQ-4bit"
-        },
-        {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
         }
       ]
     },
@@ -74,10 +70,6 @@
       "aiGroups": ["/ai-group/admin", "/ai-group/business"],
       "models": [
         {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
-        },
-        {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
           "label": "Qwen3.6-27B-AWQ-INT4"
         }
@@ -87,31 +79,22 @@
       "value": "ba_research",
       "label": "BA Research Agent",
       "description": "Researches and analyzes Jira stories to create comprehensive BA specifications and requirement documents. Reviews pre-development requirements for completeness, consistency, and scope correctness.",
-      "defaultModel": "litellm:openai/gpt-5.4",
+      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
       "aiGroups": ["/ai-group/admin"],
       "models": [
         {
-          "value": "litellm:openai/gpt-5.4",
-          "label": "gpt-5.4"
-        },
-        {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
+          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+          "label": "Qwen3.6-27B-AWQ-INT4"
         }
-      ],
-      "subagentModelOverrideTemplates": {
-        "default-researcher": "openai:gpt-5.4",
-        "ba-requirements-reviewer": "openai:gpt-5.4",
-        "business-story-to-ba-specification-developer": "openai:gpt-5.4"
-      }
+      ]
     },
     {
       "value": "ba_task_chat",
       "label": "BA Task Chat Agent",
       "description": "BA task chat agent for creating and updating Jira tasks and Confluence pages.",
       "exampleQuestions": [],
-      "aiGroups": ["/ai-group/admin", "/ai-group/business"],
-      "defaultModel": "litellm:openai/gpt-5.4",
+      "aiGroups": ["/ai-group/admin"],
+      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
       "models": [
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
@@ -120,14 +103,6 @@
         {
           "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
           "label": "gemma-4-26B-A4B-it-AWQ-4bit"
-        },
-        {
-          "value": "litellm:openai/gpt-5.4",
-          "label": "gpt-5.4"
-        },
-        {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
         }
       ]
     },
@@ -140,12 +115,37 @@
       "aiGroups": ["/ai-group/admin", "/ai-group/it"],
       "models": [
         {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
+          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+          "label": "Qwen3.6-27B-AWQ-INT4"
         },
+        {
+          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
+          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
+        }
+      ]
+    },
+    {
+      "value": "ai_history_review",
+      "label": "AI History Review Agent",
+      "description": "Reviews one completed AI-assisted task: retrieves the executor's AI session history from GitLab, cross-checks Jira estimates/time/AI-savings and the shipped diff, and produces a lead/architect review report with mentor coaching examples.",
+      "exampleQuestions": [
+        "Do a history review for task MMRU-1234",
+        "Do a history review for task MMRU-1234 and publish the report to Confluence"
+      ],
+      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+      "aiGroups": ["/ai-group/admin"],
+      "models": [
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
           "label": "Qwen3.6-27B-AWQ-INT4"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-v4-flash",
+          "label": "deepseek-v4-flash"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-v4-pro",
+          "label": "deepseek-v4-pro"
         },
         {
           "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
@@ -172,17 +172,21 @@
           "label": "gpt-5.4"
         },
         {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
-        },
-        {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
           "label": "Qwen3.6-27B-AWQ-INT4"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-v4-flash",
+          "label": "deepseek-v4-flash"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-v4-pro",
+          "label": "deepseek-v4-pro"
         }
       ],
       "subagentModelOverrideTemplates": {
-        "spec-researcher": "openai:gpt-5.4",
-        "qa-requirements-researcher": "openai:gpt-5.4"
+        "spec-researcher": "litellm:openai/openai:gpt-5.4",
+        "qa-requirements-researcher": "litellm:openai/openai:gpt-5.5"
       }
     },
     {
@@ -200,10 +204,6 @@
         {
           "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
           "label": "gemma-4-26B-A4B-it-AWQ-4bit"
-        },
-        {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
         }
       ]
     },
@@ -211,13 +211,9 @@
       "value": "spec_research",
       "label": "Spec Research Agent",
       "description": "Technical Business Analyst for investigating Jira issues, building retrieval evidence bundles, and producing normalized requirements corpora for development teams.",
-      "defaultModel": "litellm:openai/gpt-5.4-mini",
+      "defaultModel": "litellm:deepseek/deepseek-v4-flash",
       "aiGroups": ["/ai-group/admin", "/ai-group/it"],
       "models": [
-        {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
-        },
         {
           "value": "litellm:openai/gpt-5.4",
           "label": "gpt-5.4"
@@ -225,6 +221,14 @@
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
           "label": "Qwen3.6-27B-AWQ-INT4"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-v4-flash",
+          "label": "deepseek-v4-flash"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-v4-pro",
+          "label": "deepseek-v4-pro"
         }
       ]
     },
@@ -232,7 +236,7 @@
       "value": "sd_chat",
       "label": "SD Chat Agent",
       "description": "Jira Service Management assistant for triaging, classifying, and responding to service desk tickets. Helps structure and route support requests efficiently.",
-      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+      "defaultModel": "litellm:deepseek/deepseek-v4-flash",
       "aiGroups": ["/ai-group/admin"],
       "models": [
         {
@@ -240,8 +244,12 @@
           "label": "Qwen3.6-27B-AWQ-INT4"
         },
         {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
+          "value": "litellm:deepseek/deepseek-v4-flash",
+          "label": "deepseek-v4-flash"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-v4-pro",
+          "label": "deepseek-v4-pro"
         }
       ]
     },
@@ -251,16 +259,16 @@
       "description": "Jira Service Management incident-intake assistant for guided ticket creation.",
       "exampleQuestions": [
       ],
-      "aiGroups": ["/ai-group/admin", "/ai-group/sd_incident"],
-      "defaultModel": "litellm:openai/gpt-5.4",
+      "aiGroups": ["/ai-group/admin"],
+      "defaultModel": "litellm:deepseek/deepseek-v4-flash",
       "models": [
         {
-          "value": "litellm:openai/gpt-5.4",
-          "label": "gpt-5.4"
+          "value": "litellm:deepseek/deepseek-v4-flash",
+          "label": "deepseek-v4-flash"
         },
         {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
+          "value": "litellm:deepseek/deepseek-v4-pro",
+          "label": "deepseek-v4-pro"
         }
       ]
     },
@@ -277,10 +285,6 @@
       "aiGroups": ["/ai-group/admin", "/ai-group/it"],
       "models": [
         {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
-        },
-        {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
           "label": "Qwen3.6-27B-AWQ-INT4"
         },
@@ -294,13 +298,9 @@
       "value": "mna_doc_generator",
       "label": "MNA Doc Generator Agent",
       "description": "Generates M&A documentation packages from retrieved tool inputs. Produces structured acquisition and due diligence documents from provided data sources.",
-      "defaultModel": "litellm:openai/gpt-5.4-mini",
+      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
       "aiGroups": ["/ai-group/admin", "/ai-group/it", "/ai-group/business"],
       "models": [
-        {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
-        },
         {
           "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
           "label": "Qwen3.6-27B-AWQ-INT4"
@@ -362,6 +362,10 @@
     {
       "value": "IDC",
       "label": "IDC"
+    },
+    {
+      "value": "MT",
+      "label": "MT"
     }
   ]
 }
