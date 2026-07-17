@@ -79,6 +79,7 @@ function EmbedPageContent() {
             assistant={assistant}
             debugMode={false}
             hideInternalToggle
+            hideFilesState
             isAttachmentsAllowed={false}
             controls={<></>}
             skeleton={

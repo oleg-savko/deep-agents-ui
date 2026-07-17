@@ -65,6 +65,7 @@ interface ChatInterfaceProps {
   view?: "chat" | "workflow";
   onViewChange?: (view: "chat" | "workflow") => void;
   hideInternalToggle?: boolean;
+  hideFilesState?: boolean;
   InterruptActionsRenderer?: React.ComponentType;
   onInput?: (input: string) => void;
 
@@ -244,6 +245,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     controls,
     banner,
     hideInternalToggle,
+    hideFilesState = false,
     skeleton,
     isAttachmentsAllowed = true,
   }) => {
@@ -1058,7 +1060,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     };
 
     const hasTasks = todos.length > 0;
-    const hasFiles = Object.keys(files).length > 0;
+    const hasFiles = !hideFilesState && Object.keys(files).length > 0;
 
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       setInput(e.target.value);
