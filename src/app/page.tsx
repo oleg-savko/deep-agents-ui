@@ -1,7 +1,9 @@
 "use client";
 
-import React, { Suspense, useState, useEffect, useMemo } from "react";
+import React, { Suspense, useState, useEffect, useMemo, useRef } from "react";
 import { useQueryState } from "nuqs";
+import { Client } from "@langchain/langgraph-sdk";
+import { useAuthHeader } from "@/providers/AuthHeaderProvider";
 import { getConfig, getSubagentOverridesRawForAssistant, saveConfig, StandaloneConfig } from "@/lib/config";
 import {
   buildSubagentTemplatesByAssistantId,
@@ -57,6 +59,10 @@ function HomePageContent() {
   const [assistantId, setAssistantId] = useQueryState("assistantId");
   const [threadId, setThreadId] = useQueryState("threadId");
   const [sidebar, setSidebar] = useQueryState("sidebar");
+  const { authorization, ready: authReady } = useAuthHeader();
+  // Tracks the thread we've already reconciled the model for, so opening a
+  // thread only triggers one getState fetch (and never fights a manual switch).
+  const modelRestoredForThreadRef = useRef<string | null>(null);
 
   const [mutateThreads, setMutateThreads] = useState<(() => void) | null>(null);
   const [interruptCount, setInterruptCount] = useState(0);
@@ -217,6 +223,66 @@ function HomePageContent() {
 
   const langsmithApiKey =
     config?.langsmithApiKey || process.env.NEXT_PUBLIC_LANGSMITH_API_KEY || "";
+
+  // When an existing thread is opened, restore the model/project it was last run
+  // with. LangGraph persists these in the thread checkpoint metadata
+  // (`LLM_MODEL`, `PROJECT`), so we read them via `getState` and reconcile the
+  // global config. Without this, an old thread would be replayed under whatever
+  // model is currently selected — the same cross-provider mismatch that breaks
+  // runs (e.g. deepseek/gpt reject dangling `tool_calls`). Best-effort: on any
+  // failure or missing metadata we leave the current model untouched.
+  useEffect(() => {
+    if (!config || !threadId || !authReady) return;
+    if (modelRestoredForThreadRef.current === threadId) return;
+    modelRestoredForThreadRef.current = threadId;
+
+    const snapshot = config;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (langsmithApiKey) headers["X-Api-Key"] = langsmithApiKey;
+        if (authorization) headers["Authorization"] = authorization;
+
+        const client = new Client({
+          apiUrl: snapshot.deploymentUrl,
+          defaultHeaders: headers,
+        });
+        const state = await client.threads.getState(threadId);
+        if (cancelled) return;
+
+        const meta = (state?.metadata ?? {}) as Record<string, unknown>;
+        const threadModel =
+          typeof meta.LLM_MODEL === "string" ? meta.LLM_MODEL : null;
+        const threadProject =
+          typeof meta.PROJECT === "string" ? meta.PROJECT : null;
+
+        if (!threadModel || threadModel === snapshot.llmModelName) return;
+
+        const next: StandaloneConfig = {
+          ...snapshot,
+          llmModelName: threadModel,
+          ...(threadProject ? { project: threadProject } : {}),
+        };
+        saveConfig(next);
+        setConfig(next);
+        toast.info(
+          `Using ${threadModel.replace(/^litellm:/, "")} — the model this conversation was created with.`,
+        );
+      } catch {
+        // Best-effort restore: a missing/failed state read leaves the current
+        // model in place. The confirm dialog still guards deliberate switches.
+        modelRestoredForThreadRef.current = null;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [threadId, authReady, authorization, langsmithApiKey, config]);
 
   const subagentModelsConfig = useMemo(() => {
     if (!config) return undefined;
