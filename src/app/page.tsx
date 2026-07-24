@@ -4,11 +4,8 @@ import React, { Suspense, useState, useEffect, useMemo, useRef } from "react";
 import { useQueryState } from "nuqs";
 import { Client } from "@langchain/langgraph-sdk";
 import { useAuthHeader } from "@/providers/AuthHeaderProvider";
-import { getConfig, getSubagentOverridesRawForAssistant, saveConfig, StandaloneConfig } from "@/lib/config";
-import {
-  buildSubagentTemplatesByAssistantId,
-  mergeSubagentModelsForAssistant,
-} from "@/lib/subagentTemplates";
+import { getConfig, saveConfig, StandaloneConfig } from "@/lib/config";
+import { buildSubagentTemplatesByAssistantId } from "@/lib/subagentTemplates";
 import { ConfigDialog } from "@/app/components/ConfigDialog";
 import { Button } from "@/components/ui/button";
 import { Assistant } from "@langchain/langgraph-sdk";
@@ -55,7 +52,16 @@ function HomePageContent() {
   const [pendingSwitch, setPendingSwitch] = useState<{
     config: StandaloneConfig;
     kind: "model" | "assistant";
+    subagentModels?: Record<string, string> | null;
   } | null>(null);
+  // Subagent models for the CURRENT thread/session only — never persisted to
+  // localStorage. `null` means "use the config.json template default". Reset to
+  // null on new thread / assistant switch; restored from checkpoint metadata
+  // when an existing thread is opened.
+  const [sessionSubagentModels, setSessionSubagentModels] = useState<Record<
+    string,
+    string
+  > | null>(null);
   const [assistantId, setAssistantId] = useQueryState("assistantId");
   const [threadId, setThreadId] = useQueryState("threadId");
   const [sidebar, setSidebar] = useQueryState("sidebar");
@@ -181,15 +187,34 @@ function HomePageContent() {
     };
   }, []);
 
-  const applyConfig = (newConfig: StandaloneConfig, resetThread: boolean) => {
+  // `subagentModels === undefined` means "leave the session value unchanged"
+  // (inline dropdowns); `null` resets to the config.json template default; a map
+  // sets an explicit per-thread override.
+  const applyConfig = (
+    newConfig: StandaloneConfig,
+    resetThread: boolean,
+    subagentModels?: Record<string, string> | null,
+  ) => {
+    const assistantChanged = config?.assistantId !== newConfig.assistantId;
     saveConfig(newConfig);
     setConfig(newConfig);
     if (resetThread) {
       setThreadId(null);
+      modelRestoredForThreadRef.current = null;
+      setSessionSubagentModels(null); // fresh thread → config.json default
+    } else if (assistantChanged) {
+      setSessionSubagentModels(null); // new assistant → its own default
+    }
+    // An explicit editor value (from the dialog) wins over the resets above.
+    if (subagentModels !== undefined) {
+      setSessionSubagentModels(subagentModels);
     }
   };
 
-  const handleSaveConfig = (newConfig: StandaloneConfig) => {
+  const handleSaveConfig = (
+    newConfig: StandaloneConfig,
+    subagentModels?: Record<string, string> | null,
+  ) => {
     const prev = config;
     const modelChanged =
       !!prev && prev.llmModelName !== newConfig.llmModelName;
@@ -207,15 +232,16 @@ function HomePageContent() {
       setPendingSwitch({
         config: newConfig,
         kind: assistantChanged ? "assistant" : "model",
+        subagentModels,
       });
       return;
     }
-    applyConfig(newConfig, false);
+    applyConfig(newConfig, false, subagentModels);
   };
 
   const confirmSwitch = () => {
     if (!pendingSwitch) return;
-    applyConfig(pendingSwitch.config, true);
+    applyConfig(pendingSwitch.config, true, pendingSwitch.subagentModels);
     setPendingSwitch(null);
   };
 
@@ -255,6 +281,19 @@ function HomePageContent() {
         if (cancelled) return;
 
         const meta = (state?.metadata ?? {}) as Record<string, unknown>;
+
+        // Restore this thread's subagent models (or fall back to default if it
+        // was never run with an override). Always runs, independent of whether
+        // the top-level model changed.
+        const threadSubagentModels = meta.SUBAGENT_MODELS;
+        setSessionSubagentModels(
+          threadSubagentModels &&
+            typeof threadSubagentModels === "object" &&
+            !Array.isArray(threadSubagentModels)
+            ? (threadSubagentModels as Record<string, string>)
+            : null,
+        );
+
         const threadModel =
           typeof meta.LLM_MODEL === "string" ? meta.LLM_MODEL : null;
         const threadProject =
@@ -284,16 +323,18 @@ function HomePageContent() {
     };
   }, [threadId, authReady, authorization, langsmithApiKey, config]);
 
+  // Effective subagent models sent with each run: the per-thread/session value
+  // if set, otherwise the assistant's config.json template default. Never read
+  // from persisted config, so stale user-saved models can't leak in.
   const subagentModelsConfig = useMemo(() => {
     if (!config) return undefined;
     const template = subagentTemplatesByAssistant[config.assistantId] ?? {};
-    const raw = getSubagentOverridesRawForAssistant(config);
-    const merged = mergeSubagentModelsForAssistant(template, raw);
-    if (Object.keys(merged).length === 0) {
+    const effective = sessionSubagentModels ?? template;
+    if (Object.keys(effective).length === 0) {
       return undefined;
     }
-    return merged;
-  }, [config, subagentTemplatesByAssistant]);
+    return effective;
+  }, [config, subagentTemplatesByAssistant, sessionSubagentModels]);
 
   const availableModels = useMemo(() => {
     if (!config) return [];
@@ -377,6 +418,7 @@ function HomePageContent() {
           onOpenChange={setConfigDialogOpen}
           onSave={handleSaveConfig}
           initialConfig={config ?? undefined}
+          subagentModels={sessionSubagentModels}
         />
         <AccessNotice
           access={accessInfo}
@@ -393,6 +435,7 @@ function HomePageContent() {
           open={configDialogOpen}
           onOpenChange={setConfigDialogOpen}
           onSave={handleSaveConfig}
+          subagentModels={sessionSubagentModels}
         />
         <div className="flex h-screen items-center justify-center">
           <div className="text-center">
@@ -440,6 +483,7 @@ function HomePageContent() {
         onOpenChange={setConfigDialogOpen}
         onSave={handleSaveConfig}
         initialConfig={config}
+        subagentModels={sessionSubagentModels}
       />
       <Dialog
         open={pendingSwitch !== null}
@@ -636,7 +680,12 @@ function HomePageContent() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setThreadId(null)}
+                onClick={() => {
+                  setThreadId(null);
+                  // Fresh thread → subagent models fall back to the default.
+                  setSessionSubagentModels(null);
+                  modelRestoredForThreadRef.current = null;
+                }}
                 disabled={!threadId}
                 className="!border-[var(--color-new-thread-btn)] !bg-[var(--color-new-thread-btn)] !text-white hover:!bg-[var(--color-new-thread-btn-hover)]"
               >

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { json as jsonLang } from "@codemirror/lang-json";
 import { oneDark } from "@codemirror/theme-one-dark";
@@ -25,8 +25,30 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { StandaloneConfig } from "@/lib/config";
-import { buildSubagentTemplatesByAssistantId } from "@/lib/subagentTemplates";
+import {
+  buildSubagentTemplatesByAssistantId,
+  parseSubagentOverridesRaw,
+} from "@/lib/subagentTemplates";
 import { cn } from "@/lib/utils";
+
+/**
+ * True when a saved override string carries no customization relative to the
+ * assistant's config.json template — i.e. it's empty/invalid or an exact match
+ * of the template. Such entries must NOT be persisted, otherwise they freeze a
+ * stale snapshot and the dialog stops reflecting config.json default changes.
+ */
+function subagentOverrideMatchesDefault(
+  raw: string | undefined,
+  template: Record<string, string>,
+): boolean {
+  const parsed = parseSubagentOverridesRaw(raw);
+  if (!parsed) return true; // empty / "{}" / invalid → no override
+  const keys = Object.keys(parsed);
+  if (keys.length === 0) return true;
+  const templateKeys = Object.keys(template);
+  if (keys.length !== templateKeys.length) return false;
+  return keys.every((k) => parsed[k] === template[k]);
+}
 
 /** Registrable root domain (last two labels), e.g. "deep-agent-ui.moneyman.ru" -> "moneyman.ru". */
 function rootDomain(host: string): string {
@@ -111,8 +133,21 @@ interface Assistant {
 interface ConfigDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (config: StandaloneConfig) => void;
+  /**
+   * Persist deployment config, and apply per-thread/session subagent models:
+   * `null` = use the config.json template default, a map = explicit override.
+   * Subagent models are never written to localStorage.
+   */
+  onSave: (
+    config: StandaloneConfig,
+    subagentModels: Record<string, string> | null,
+  ) => void;
   initialConfig?: StandaloneConfig;
+  /**
+   * Current effective subagent models for the active thread/session (session
+   * value, else config.json template). Used to seed the editor. Never persisted.
+   */
+  subagentModels?: Record<string, string> | null;
 }
 
 export function ConfigDialog({
@@ -120,6 +155,7 @@ export function ConfigDialog({
   onOpenChange,
   onSave,
   initialConfig,
+  subagentModels,
 }: ConfigDialogProps) {
   const DEFAULT_LLM_MODEL_NAME = "litellm:openai/gpt-5-mini";
 
@@ -139,9 +175,6 @@ export function ConfigDialog({
   const [subagentModelOverridesError, setSubagentModelOverridesError] = useState<
     string | null
   >(null);
-  const [overridesByAssistant, setOverridesByAssistant] = useState<
-    Record<string, string>
-  >({});
   const [subagentModelOverrideTemplates, setSubagentModelOverrideTemplates] =
     useState<Record<string, Record<string, string>>>({});
   const [deployments, setDeployments] = useState<Deployment[]>([]);
@@ -150,11 +183,6 @@ export function ConfigDialog({
   const [showInternalSteps, setShowInternalSteps] = useState(
     initialConfig?.showInternalSteps ?? false,
   );
-
-  const assistantIdRef = useRef(assistantId);
-  const overridesMapRef = useRef(overridesByAssistant);
-  assistantIdRef.current = assistantId;
-  overridesMapRef.current = overridesByAssistant;
 
   const selectedAssistant = assistants.find((a) => a.value === assistantId);
   const selectedProject = projects.find((p) => p.value === project);
@@ -172,38 +200,20 @@ export function ConfigDialog({
       setLlmModelName(initialConfig.llmModelName || DEFAULT_LLM_MODEL_NAME);
       setProject(initialConfig.project || "");
       setShowInternalSteps(initialConfig.showInternalSteps ?? false);
-      const map = { ...(initialConfig.subagentModelOverridesByAssistant ?? {}) };
-      const id = initialConfig.assistantId;
-      setOverridesByAssistant(map);
-      const editor =
-        map[id] !== undefined
-          ? map[id]!
-          : JSON.stringify({}, null, 2);
-      setSubagentModelOverrides(editor);
-      setSubagentModelOverridesError(null);
     }
   }, [open, initialConfig]);
 
-  // When config.json templates load, hydrate empty "{}" editor from template for this assistant.
+  // Seed the subagent editor with the current EFFECTIVE models: the per-thread
+  // session value if set, otherwise the assistant's config.json template
+  // default. Never sourced from persisted config — subagent models are
+  // per-thread only, so stale saved models can never be loaded.
   useEffect(() => {
     if (!open) return;
-    const id = assistantIdRef.current;
-    const map = overridesMapRef.current;
-    setSubagentModelOverrides((cur) => {
-      if (map[id] !== undefined) {
-        return map[id]!;
-      }
-      const tmpl = subagentModelOverrideTemplates[id] ?? {};
-      if (Object.keys(tmpl).length === 0) {
-        return cur;
-      }
-      const compact = cur.trim().replace(/\s/g, "");
-      if (compact !== "" && compact !== "{}") {
-        return cur;
-      }
-      return JSON.stringify(tmpl, null, 2);
-    });
-  }, [subagentModelOverrideTemplates, open]);
+    const template = subagentModelOverrideTemplates[assistantId] ?? {};
+    const effective = subagentModels ?? template;
+    setSubagentModelOverrides(JSON.stringify(effective, null, 2));
+    setSubagentModelOverridesError(null);
+  }, [open, assistantId, subagentModels, subagentModelOverrideTemplates]);
 
   // Load projects and LLM models from config
   useEffect(() => {
@@ -263,19 +273,27 @@ export function ConfigDialog({
       return;
     }
 
-    const mergedOverrides = {
-      ...overridesByAssistant,
-      [assistantId]: subagentModelOverrides,
-    };
-    onSave({
-      ...(initialConfig ?? {}),
-      deploymentUrl,
-      assistantId,
-      llmModelName,
-      project: project || undefined,
-      showInternalSteps,
-      subagentModelOverridesByAssistant: mergedOverrides,
-    });
+    // Apply subagent models for the current thread/session only (never
+    // persisted). Empty or template-equal → null, meaning "use the config.json
+    // template default".
+    const template = subagentModelOverrideTemplates[assistantId] ?? {};
+    const editorMap = parseSubagentOverridesRaw(subagentModelOverrides);
+    const nextSubagentModels =
+      !editorMap ||
+      subagentOverrideMatchesDefault(subagentModelOverrides, template)
+        ? null
+        : editorMap;
+    onSave(
+      {
+        ...(initialConfig ?? {}),
+        deploymentUrl,
+        assistantId,
+        llmModelName,
+        project: project || undefined,
+        showInternalSteps,
+      },
+      nextSubagentModels,
+    );
     onOpenChange(false);
   };
 
@@ -322,19 +340,14 @@ export function ConfigDialog({
             <Select
               value={assistantId}
               onValueChange={(newAssistantId) => {
-                const next = {
-                  ...overridesByAssistant,
-                  [assistantId]: subagentModelOverrides,
-                };
-                setOverridesByAssistant(next);
-                const editor =
-                  next[newAssistantId] !== undefined
-                    ? next[newAssistantId]!
-                    : JSON.stringify(
-                        subagentModelOverrideTemplates[newAssistantId] ?? {},
-                        null,
-                        2,
-                      );
+                // New assistant → load its config.json template default into the
+                // editor (subagent models are per-thread; switching assistant
+                // resets to that assistant's default).
+                const editor = JSON.stringify(
+                  subagentModelOverrideTemplates[newAssistantId] ?? {},
+                  null,
+                  2,
+                );
                 setSubagentModelOverrides(editor);
                 setSubagentModelOverridesError(
                   validateSubagentOverridesJson(editor),

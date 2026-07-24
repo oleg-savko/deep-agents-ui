@@ -53,18 +53,3 @@ export function parseSubagentOverridesRaw(
   }
   return undefined;
 }
-
-/**
- * Merge config.json template with optional localStorage override for one assistant.
- * Saved keys override template keys.
- */
-export function mergeSubagentModelsForAssistant(
-  template: Record<string, string>,
-  rawOverride: string | undefined,
-): Record<string, string> {
-  const user = parseSubagentOverridesRaw(rawOverride);
-  if (!user) {
-    return { ...template };
-  }
-  return { ...template, ...user };
-}
