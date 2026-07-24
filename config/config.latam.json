@@ -168,14 +168,27 @@
       "description": "Reviews one completed AI-assisted task: retrieves the executor's AI session history from GitLab, cross-checks Jira estimates/time/AI-savings and the shipped diff, and produces a lead/architect review report with mentor coaching examples.",
       "exampleQuestions": [
         "Do a history review for task MMMX-1234",
-        "Do a history review for task MMMX-1234 and publish the report to Confluence"
+        "Do a history review for task MMMX-1234 and publish the report to Confluence",
+        "Review the QA team's AI work for sprint 'MX - Sprint 42' in MMMX — a per-sprint summary for the team lead"
       ],
-      "defaultModel": "litellm:openai/gpt-5.4",
+      "defaultModel": "litellm:gpt-5.6-luna",
       "aiGroups": ["/ai-group/admin"],
       "models": [
         {
           "value": "litellm:openai/gpt-5.4",
           "label": "gpt-5.4"
+        },
+        {
+          "value": "litellm:openai/gpt-5.6-sol",
+          "label": "gpt-5.6-sol"
+        },
+        {
+          "value": "litellm:openai/gpt-5.6-terra",
+          "label": "gpt-5.6-terra"
+        },
+        {
+          "value": "litellm:openai/gpt-5.6-luna",
+          "label": "gpt-5.6-luna"
         }
       ]
     }

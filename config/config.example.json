@@ -280,7 +280,8 @@
       "description": "Reviews one completed AI-assisted task: retrieves the executor's AI session history from GitLab, cross-checks Jira estimates/time/AI-savings and the shipped diff, and produces a lead/architect review report with mentor coaching examples.",
       "exampleQuestions": [
         "Do a history review for task MMRU-1234",
-        "Do a history review for task MMRU-1234 and publish the report to Confluence"
+        "Do a history review for task MMRU-1234 and publish the report to Confluence",
+        "Review the dev team's AI work for sprint 'RU - Milestone 339' in MMRU — a per-sprint summary for the team lead"
       ],
       "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
       "aiGroups": ["/MMRU/ai-group/admin"],

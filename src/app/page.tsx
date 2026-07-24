@@ -38,12 +38,24 @@ import { AccessNotice, type AccessInfo } from "@/app/components/AccessNotice";
 import { ConnectivityBanner } from "@/app/components/ConnectivityBanner";
 import { useAgentHealth, type AgentHealth } from "@/app/hooks/useAgentHealth";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 function HomePageContent() {
   const [config, setConfig] = useState<StandaloneConfig | null>(null);
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [pendingSwitch, setPendingSwitch] = useState<{
+    config: StandaloneConfig;
+    kind: "model" | "assistant";
+  } | null>(null);
   const [assistantId, setAssistantId] = useQueryState("assistantId");
-  const [_threadId, setThreadId] = useQueryState("threadId");
+  const [threadId, setThreadId] = useQueryState("threadId");
   const [sidebar, setSidebar] = useQueryState("sidebar");
 
   const [mutateThreads, setMutateThreads] = useState<(() => void) | null>(null);
@@ -163,10 +175,45 @@ function HomePageContent() {
     };
   }, []);
 
-  const handleSaveConfig = (newConfig: StandaloneConfig) => {
+  const applyConfig = (newConfig: StandaloneConfig, resetThread: boolean) => {
     saveConfig(newConfig);
     setConfig(newConfig);
+    if (resetThread) {
+      setThreadId(null);
+    }
   };
+
+  const handleSaveConfig = (newConfig: StandaloneConfig) => {
+    const prev = config;
+    const modelChanged =
+      !!prev && prev.llmModelName !== newConfig.llmModelName;
+    const assistantChanged =
+      !!prev && prev.assistantId !== newConfig.assistantId;
+
+    // Switching model or assistant mid-conversation replays the existing
+    // message history under a different provider's validation rules, which can
+    // break the run (e.g. deepseek/gpt reject dangling `tool_calls` that claude
+    // tolerated). If a thread is already active, ask the user to confirm before
+    // starting a fresh one; on cancel the switch is discarded and the controlled
+    // dropdowns revert to the current config. With no active thread, apply
+    // immediately.
+    if ((modelChanged || assistantChanged) && threadId) {
+      setPendingSwitch({
+        config: newConfig,
+        kind: assistantChanged ? "assistant" : "model",
+      });
+      return;
+    }
+    applyConfig(newConfig, false);
+  };
+
+  const confirmSwitch = () => {
+    if (!pendingSwitch) return;
+    applyConfig(pendingSwitch.config, true);
+    setPendingSwitch(null);
+  };
+
+  const cancelSwitch = () => setPendingSwitch(null);
 
   const langsmithApiKey =
     config?.langsmithApiKey || process.env.NEXT_PUBLIC_LANGSMITH_API_KEY || "";
@@ -328,6 +375,33 @@ function HomePageContent() {
         onSave={handleSaveConfig}
         initialConfig={config}
       />
+      <Dialog
+        open={pendingSwitch !== null}
+        onOpenChange={(open) => {
+          if (!open) cancelSwitch();
+        }}
+      >
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>
+              Start a new conversation?
+            </DialogTitle>
+            <DialogDescription>
+              {pendingSwitch?.kind === "assistant"
+                ? "Switching assistant starts a new conversation. Your current chat history won't carry over."
+                : "Switching model starts a new conversation. Chat history isn't shared across models, and keeping it can break the new model."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={cancelSwitch}>
+              Cancel
+            </Button>
+            <Button onClick={confirmSwitch}>
+              Start new conversation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <ClientProvider
         deploymentUrl={config.deploymentUrl}
         apiKey={langsmithApiKey}
@@ -365,7 +439,6 @@ function HomePageContent() {
                         assistantDefaultModels[newId] ?? config.llmModelName,
                     };
                     handleSaveConfig(updated);
-                    setThreadId(null);
                   }}
                 >
                   <SelectTrigger className="h-7 gap-1 border-none bg-transparent px-1.5 text-sm shadow-none focus:ring-0 [&>svg]:hidden">
@@ -498,7 +571,7 @@ function HomePageContent() {
                 variant="outline"
                 size="sm"
                 onClick={() => setThreadId(null)}
-                disabled={!_threadId}
+                disabled={!threadId}
                 className="!border-[var(--color-new-thread-btn)] !bg-[var(--color-new-thread-btn)] !text-white hover:!bg-[var(--color-new-thread-btn-hover)]"
               >
                 <SquarePen className="mr-2 h-4 w-4" />
