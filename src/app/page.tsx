@@ -323,18 +323,35 @@ function HomePageContent() {
     };
   }, [threadId, authReady, authorization, langsmithApiKey, config]);
 
-  // Effective subagent models sent with each run: the per-thread/session value
-  // if set, otherwise the assistant's config.json template default. Never read
-  // from persisted config, so stale user-saved models can't leak in.
+  // Effective subagent models sent with each run. Never read from persisted
+  // config, so stale user-saved models can't leak in.
   const subagentModelsConfig = useMemo(() => {
     if (!config) return undefined;
-    const template = subagentTemplatesByAssistant[config.assistantId] ?? {};
-    const effective = sessionSubagentModels ?? template;
-    if (Object.keys(effective).length === 0) {
-      return undefined;
+    // Explicit per-thread/session value (dialog editor or thread restore) wins.
+    // An empty object means "explicitly none" → subagents follow the main model.
+    if (sessionSubagentModels) {
+      return Object.keys(sessionSubagentModels).length > 0
+        ? sessionSubagentModels
+        : undefined;
     }
-    return effective;
-  }, [config, subagentTemplatesByAssistant, sessionSubagentModels]);
+    // No explicit value: apply the config.json template ONLY when the main model
+    // equals the assistant's default (the model the template was authored for).
+    // If the user switched to a different main model, send nothing so subagents
+    // run on that main model — mixing e.g. deepseek thinking-mode subagents under
+    // a Qwen main model is incompatible and errors the run.
+    const template = subagentTemplatesByAssistant[config.assistantId] ?? {};
+    const defaultModel = assistantDefaultModels[config.assistantId];
+    const useTemplate =
+      Object.keys(template).length > 0 &&
+      !!defaultModel &&
+      config.llmModelName === defaultModel;
+    return useTemplate ? template : undefined;
+  }, [
+    config,
+    subagentTemplatesByAssistant,
+    assistantDefaultModels,
+    sessionSubagentModels,
+  ]);
 
   const availableModels = useMemo(() => {
     if (!config) return [];

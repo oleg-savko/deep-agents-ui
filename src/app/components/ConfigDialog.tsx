@@ -203,17 +203,31 @@ export function ConfigDialog({
     }
   }, [open, initialConfig]);
 
-  // Seed the subagent editor with the current EFFECTIVE models: the per-thread
-  // session value if set, otherwise the assistant's config.json template
-  // default. Never sourced from persisted config — subagent models are
-  // per-thread only, so stale saved models can never be loaded.
+  // Seed the subagent editor with what will actually be SENT, mirroring
+  // page.tsx: the explicit per-thread session value if set, otherwise the
+  // config.json template ONLY when the main model equals the assistant's
+  // default (the model the template was authored for). With a different main
+  // model the template is dropped and subagents follow the main model, so the
+  // editor shows an empty object. Never sourced from persisted config.
   useEffect(() => {
     if (!open) return;
     const template = subagentModelOverrideTemplates[assistantId] ?? {};
-    const effective = subagentModels ?? template;
+    const defaultModel = assistants.find(
+      (a) => a.value === assistantId,
+    )?.defaultModel;
+    const effective =
+      subagentModels ??
+      (defaultModel && llmModelName === defaultModel ? template : {});
     setSubagentModelOverrides(JSON.stringify(effective, null, 2));
     setSubagentModelOverridesError(null);
-  }, [open, assistantId, subagentModels, subagentModelOverrideTemplates]);
+  }, [
+    open,
+    assistantId,
+    subagentModels,
+    subagentModelOverrideTemplates,
+    llmModelName,
+    assistants,
+  ]);
 
   // Load projects and LLM models from config
   useEffect(() => {
