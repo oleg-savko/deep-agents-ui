@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppRenderer, isUIResource } from "@mcp-ui/client";
 import type { ToolCall } from "@/app/types/types";
 
@@ -41,6 +41,33 @@ function extractStructuredContent(result: unknown): Record<string, unknown> | nu
     /* ignore */
   }
   return null;
+}
+
+/**
+ * Keep a stable object identity for as long as the JSON content is unchanged.
+ *
+ * `AppFrame` re-sends `ui/notifications/tool-input` (and `tool-result`) to the
+ * guest iframe whenever those props change *identity*, and the guest re-renders
+ * its whole DOM on each notification. ChatInterface rebuilds every `ToolCall`
+ * from scratch on each render (its memo depends on `getMessagesMetadata`, which
+ * `useStream` recreates every render) and re-parses string
+ * `function.arguments` into a fresh object — so a plain `useMemo` here still
+ * hands `AppFrame` a new object and the guest wipes whatever the user typed
+ * into an `ask_user_form`.
+ */
+function useJsonStable<T>(value: T): T {
+  const ref = useRef<{ key: string; value: T } | null>(null);
+  let key: string;
+  try {
+    key = JSON.stringify(value) ?? "";
+  } catch {
+    key = "";
+  }
+  // Empty key = unserializable; fall back to pass-through (previous behavior).
+  if (!ref.current || key === "" || ref.current.key !== key) {
+    ref.current = { key, value };
+  }
+  return ref.current.value;
 }
 
 interface ChartAppRendererProps {
@@ -194,7 +221,7 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
       [toolCall]
     );
 
-    const toolResult = useMemo(() => {
+    const rawToolResult = useMemo(() => {
       const artifact = (toolCall as any).artifact;
       const artifactObj = artifact && typeof artifact === "object" ? (artifact as any) : {};
       const content = Array.isArray(artifactObj.content_blocks)
@@ -207,7 +234,7 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
       return { content, structuredContent } as any;
     }, [toolCall]);
 
-    const toolInput = useMemo(() => {
+    const rawToolInput = useMemo(() => {
       const args = (toolCall as any).args;
       if (typeof args === "string") {
         try {
@@ -218,6 +245,10 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
       }
       return args && typeof args === "object" ? args : {};
     }, [toolCall]);
+
+    // Identity must only change when the *content* changes — see `useJsonStable`.
+    const toolInput = useJsonStable(rawToolInput);
+    const toolResult = useJsonStable(rawToolResult);
 
     const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">(
       "idle"
