@@ -51,7 +51,7 @@ function HomePageContent() {
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [pendingSwitch, setPendingSwitch] = useState<{
     config: StandaloneConfig;
-    kind: "model" | "assistant";
+    kind: "model" | "assistant" | "project";
     subagentModels?: Record<string, string> | null;
   } | null>(null);
   // Subagent models for the CURRENT thread/session only — never persisted to
@@ -96,6 +96,9 @@ function HomePageContent() {
   const [projectAvailableModels, setProjectAvailableModels] = useState<
     Record<string, string[]>
   >({});
+  const [configProjects, setConfigProjects] = useState<
+    { value: string; label: string }[]
+  >([]);
   const [accessInfo, setAccessInfo] = useState<AccessInfo | null>(null);
 
   useEffect(() => {
@@ -154,6 +157,14 @@ function HomePageContent() {
             }
           }
           setProjectAvailableModels(projModels);
+          setConfigProjects(
+            (data.projects ?? []).map(
+              (p: { value: string; label?: string }) => ({
+                value: p.value,
+                label: p.label ?? p.value,
+              }),
+            ),
+          );
           setConfigAssistants(
             (data.assistants ?? []).map(
               (a: { value: string; label?: string; description?: string }) => ({
@@ -220,6 +231,11 @@ function HomePageContent() {
       !!prev && prev.llmModelName !== newConfig.llmModelName;
     const assistantChanged =
       !!prev && prev.assistantId !== newConfig.assistantId;
+    // The project decides which per-project tool instances an agent binds
+    // (clickhouse_<project>_*, gitlab_<project>_*, airflow_<project>_*) and which
+    // Confluence space it searches, so replaying a thread under another project
+    // leaves tool calls in the history that no longer exist.
+    const projectChanged = !!prev && prev.project !== newConfig.project;
 
     // Switching model or assistant mid-conversation replays the existing
     // message history under a different provider's validation rules, which can
@@ -228,10 +244,14 @@ function HomePageContent() {
     // starting a fresh one; on cancel the switch is discarded and the controlled
     // dropdowns revert to the current config. With no active thread, apply
     // immediately.
-    if ((modelChanged || assistantChanged) && threadId) {
+    if ((modelChanged || assistantChanged || projectChanged) && threadId) {
       setPendingSwitch({
         config: newConfig,
-        kind: assistantChanged ? "assistant" : "model",
+        kind: assistantChanged
+          ? "assistant"
+          : projectChanged
+            ? "project"
+            : "model",
         subagentModels,
       });
       return;
@@ -516,7 +536,9 @@ function HomePageContent() {
             <DialogDescription>
               {pendingSwitch?.kind === "assistant"
                 ? "Switching assistant starts a new conversation. Your current chat history won't carry over."
-                : "Switching model starts a new conversation. Chat history isn't shared across models, and keeping it can break the new model."}
+                : pendingSwitch?.kind === "project"
+                  ? "Switching project starts a new conversation. Each project has its own data sources and tools, so the current history can't be replayed under another one."
+                  : "Switching model starts a new conversation. Chat history isn't shared across models, and keeping it can break the new model."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -611,6 +633,46 @@ function HomePageContent() {
                   </Tooltip>
                 )}
               </div>
+              {configProjects.length > 0 && (
+                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <span className="font-medium">Project:</span>
+                  <Select
+                    value={config.project ?? ""}
+                    onValueChange={(newProject) => {
+                      handleSaveConfig({ ...config, project: newProject });
+                    }}
+                  >
+                    <SelectTrigger className="h-7 gap-1 border-none bg-transparent px-1.5 text-sm shadow-none focus:ring-0 [&>svg]:hidden">
+                      <SelectValue placeholder="Select">
+                        <span className="block max-w-[140px] truncate">
+                          {configProjects.find(
+                            (p) => p.value === config.project,
+                          )?.label ?? config.project}
+                        </span>
+                      </SelectValue>
+                      <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                    </SelectTrigger>
+                    <SelectContent align="end" className="max-w-[320px]">
+                      {configProjects.map((p) => (
+                        <SelectPrimitive.Item
+                          key={p.value}
+                          value={p.value}
+                          className="relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pl-2 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                        >
+                          <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                            <SelectPrimitive.ItemIndicator>
+                              <Check className="h-4 w-4" />
+                            </SelectPrimitive.ItemIndicator>
+                          </span>
+                          <SelectPrimitive.ItemText>
+                            {p.label}
+                          </SelectPrimitive.ItemText>
+                        </SelectPrimitive.Item>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               {availableModels.length > 0 && (
                 <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                   <span className="font-medium">Model:</span>

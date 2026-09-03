@@ -5,4 +5,4 @@ export const EMBED_ASSISTANT_ID = "mt_chat";
 
 /** LLM id for embed; override with NEXT_PUBLIC_EMBED_LLM_MODEL at build if needed. */
 export const EMBED_LLM_MODEL =
-  process.env.NEXT_PUBLIC_EMBED_LLM_MODEL?.trim() || "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit";
+  process.env.NEXT_PUBLIC_EMBED_LLM_MODEL?.trim() || "litellm:openai/gemma-4-26B-A4B";
