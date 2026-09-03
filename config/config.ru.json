@@ -35,16 +35,16 @@
         "покажи формулу реструктуризации в коде репозитории gitlab?",
         "покажи статистику по ai_savings для MMRU по 335 спринту на графиках по департментам"
       ],
-      "defaultModel": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
+      "defaultModel": "litellm:openai/gemma-4-26B-A4B",
       "aiGroups": ["/ai-group/admin", "/ai-group/it", "/ai-group/business"],
       "models": [
         {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "Qwen3.6-27B-AWQ-INT4"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
         },
         {
-          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
+          "value": "litellm:openai/gemma-4-26B-A4B",
+          "label": "gemma-4-26B-A4B"
         },
         {
           "value": "litellm:deepseek/deepseek-v4-flash",
@@ -57,12 +57,12 @@
       "label": "MT Chat Agent",
       "description": "Fast knowledge retriever for quick factual lookups and Q&A from your knowledge base.",
       "exampleQuestions": ["когда зарплата?"],
-      "defaultModel": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
+      "defaultModel": "litellm:openai/gemma-4-26B-A4B",
       "aiGroups": ["/ai-group/admin", "/ai-group/it", "/ai-group/business"],
       "models": [
         {
-          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
+          "value": "litellm:openai/gemma-4-26B-A4B",
+          "label": "gemma-4-26B-A4B"
         }
       ]
     },
@@ -70,12 +70,12 @@
       "value": "story_chat",
       "label": "Story Chat Agent",
       "description": "Business Analysis Assistant for creating high-quality Jira user stories. Transforms stakeholder requirements into well-structured stories with acceptance criteria.",
-      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-      "aiGroups": ["/ai-group/admin", "/ai-group/business"],
+      "defaultModel": "litellm:openai/Qwen3.8-27B",
+      "aiGroups": ["/ai-group/admin", "/ai-group/it", "/ai-group/business"],
       "models": [
         {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "Qwen3.6-27B-AWQ-INT4"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
         },
         {
           "value": "litellm:deepseek/deepseek-v4-flash",
@@ -91,12 +91,12 @@
       "value": "ba_research",
       "label": "BA Research Agent",
       "description": "Researches and analyzes Jira stories to create comprehensive BA specifications and requirement documents. Reviews pre-development requirements for completeness, consistency, and scope correctness.",
-      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+      "defaultModel": "litellm:openai/Qwen3.8-27B",
       "aiGroups": ["/ai-group/admin"],
       "models": [
         {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "Qwen3.6-27B-AWQ-INT4"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
         }
       ]
     },
@@ -106,15 +106,15 @@
       "description": "BA task chat agent for creating and updating Jira tasks and Confluence pages.",
       "exampleQuestions": [],
       "aiGroups": ["/ai-group/admin"],
-      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+      "defaultModel": "litellm:openai/Qwen3.8-27B",
       "models": [
         {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "Qwen3.6-27B-AWQ-INT4"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
         },
         {
-          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
+          "value": "litellm:openai/gemma-4-26B-A4B",
+          "label": "gemma-4-26B-A4B"
         }
       ]
     },
@@ -123,16 +123,16 @@
       "label": "Codebase Q&A Agent (for business users)",
       "description": "Business-facing Q&A assistant for your GitLab codebase. Helps non-developers understand what features, integrations, and functionality exist in the code.",
       "exampleQuestions": ["покажи формулу реструктуризации в коде"],
-      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+      "defaultModel": "litellm:openai/Qwen3.8-27B",
       "aiGroups": ["/ai-group/admin", "/ai-group/it"],
       "models": [
         {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "Qwen3.6-27B-AWQ-INT4"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
         },
         {
-          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
+          "value": "litellm:openai/gemma-4-26B-A4B",
+          "label": "gemma-4-26B-A4B"
         }
       ]
     },
@@ -143,14 +143,14 @@
       "exampleQuestions": [
         "Do a history review for task MMRU-1234",
         "Do a history review for task MMRU-1234 and publish the report to Confluence",
-        "Review the dev team's AI work for sprint 'RU - Milestone 339' in MMRU — a per-sprint summary for the team lead"
+        "Invoke sprint-review for DEP_DEV team sprint 341 in project MMRU\nPROJECT: MMRU\nSPRINT_NUM: 341\nDISCIPLINE: DEP_DEV\nTask: sprint × discipline AI-review roll-up for the team lead and mentor."
       ],
-      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-      "aiGroups": ["/ai-group/admin"],
+      "defaultModel": "litellm:openai/Qwen3.8-27B",
+      "aiGroups": ["/ai-group/admin", "/ai-group/it"],
       "models": [
         {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "Qwen3.6-27B-AWQ-INT4"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
         },
         {
           "value": "litellm:deepseek/deepseek-v4-flash",
@@ -161,8 +161,38 @@
           "label": "deepseek-v4-pro"
         },
         {
-          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
+          "value": "litellm:openai/gemma-4-26B-A4B",
+          "label": "gemma-4-26B-A4B"
+        }
+      ]
+    },
+    {
+      "value": "ai_task_estimation",
+      "label": "AI Task Estimation Agent",
+      "description": "Estimates a Jira ticket BEFORE development starts: builds the scope from the ticket's requirements corpus, decomposes it into work items per department rubric (backend / frontend), sizes each against the real codebase, and returns ASOE (AI Self Original Estimate) — hours with a band and a confidence — plus a detailed execution plan. Writes ASOE to its Jira field and posts the plan as a Jira comment.",
+      "exampleQuestions": [
+        "Estimate task MMRU-1234",
+        "Estimate task MMRU-1234\nDISCIPLINE: front",
+        "Estimate task MMRU-1234 — both backend and frontend, and post the plan to the ticket"
+      ],
+      "defaultModel": "litellm:openai/Qwen3.8-27B",
+      "aiGroups": ["/ai-group/admin", "/ai-group/it"],
+      "models": [
+        {
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-v4-flash",
+          "label": "deepseek-v4-flash"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-v4-pro",
+          "label": "deepseek-v4-pro"
+        },
+        {
+          "value": "litellm:openai/gemma-4-26B-A4B",
+          "label": "gemma-4-26B-A4B"
         }
       ]
     },
@@ -197,8 +227,8 @@
           "label": "gpt-5.4"
         },
         {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "Qwen3.6-27B-AWQ-INT4"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
         },
         {
           "value": "litellm:deepseek/deepseek-v4-flash",
@@ -220,15 +250,49 @@
       "description": "Analitics and data engineering assistant base on project specific clickhouse database.",
       "exampleQuestions": [],
       "aiGroups": ["/ai-group/admin", "/ai-group/business", "/ai-group/it"],
-      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+      "defaultModel": "litellm:deepseek/deepseek-v4-flash",
       "models": [
         {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "Qwen3.6-27B-AWQ-INT4"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
         },
         {
-          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
+          "value": "litellm:openai/gemma-4-26B-A4B",
+          "label": "gemma-4-26B-A4B"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-v4-flash",
+          "label": "deepseek-v4-flash"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-v4-pro",
+          "label": "deepseek-v4-pro"
+        }
+      ]
+    },
+    {
+      "value": "product_alert_rca",
+      "label": "Product Alert RCA Agent",
+      "description": "Root-cause analysis for hourly AR/IR conversion alerts (MMRU): validates the alert, localizes the broken funnel step in ClickHouse, then correlates with deploys, newly appeared component errors and per-component metrics, and returns ranked causes with a check-this-first list.",
+      "exampleQuestions": [
+        "ar_new_1h ALERT 03:00-04:00 MSK, conversion 41.2%, target 58.7% — найди причину",
+        "ir_old_1h просел в этот час — это выдача или артефакт данных?",
+        "Какой шаг воронки сломался за последние 3 часа и что менялось?"
+      ],
+      "aiGroups": ["/ai-group/admin", "/ai-group/it"],
+      "defaultModel": "litellm:deepseek/deepseek-v4-pro",
+      "models": [
+        {
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-v4-flash",
+          "label": "deepseek-v4-flash"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-v4-pro",
+          "label": "deepseek-v4-pro"
         }
       ]
     },
@@ -244,8 +308,8 @@
           "label": "gpt-5.4"
         },
         {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "Qwen3.6-27B-AWQ-INT4"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
         },
         {
           "value": "litellm:deepseek/deepseek-v4-flash",
@@ -265,8 +329,8 @@
       "aiGroups": ["/ai-group/admin"],
       "models": [
         {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "Qwen3.6-27B-AWQ-INT4"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
         },
         {
           "value": "litellm:deepseek/deepseek-v4-flash",
@@ -282,8 +346,7 @@
       "value": "sd_incident",
       "label": "SD Incident Agent",
       "description": "Jira Service Management incident-intake assistant for guided ticket creation.",
-      "exampleQuestions": [
-      ],
+      "exampleQuestions": [],
       "aiGroups": ["/ai-group/admin"],
       "defaultModel": "litellm:deepseek/deepseek-v4-flash",
       "models": [
@@ -306,16 +369,16 @@
         "What decisions were made in this planning session? [paste transcript]",
         "Create a stakeholder-ready summary of this sprint retrospective"
       ],
-      "defaultModel": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
+      "defaultModel": "litellm:openai/gemma-4-26B-A4B",
       "aiGroups": ["/ai-group/admin", "/ai-group/it"],
       "models": [
         {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "Qwen3.6-27B-AWQ-INT4"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
         },
         {
-          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
+          "value": "litellm:openai/gemma-4-26B-A4B",
+          "label": "gemma-4-26B-A4B"
         }
       ]
     },
@@ -323,16 +386,16 @@
       "value": "mna_doc_generator",
       "label": "MNA Doc Generator Agent",
       "description": "Generates M&A documentation packages from retrieved tool inputs. Produces structured acquisition and due diligence documents from provided data sources.",
-      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+      "defaultModel": "litellm:openai/Qwen3.8-27B",
       "aiGroups": ["/ai-group/admin", "/ai-group/it", "/ai-group/business"],
       "models": [
         {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "Qwen3.6-27B-AWQ-INT4"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
         },
         {
-          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
+          "value": "litellm:openai/gemma-4-26B-A4B",
+          "label": "gemma-4-26B-A4B"
         }
       ]
     },
@@ -340,16 +403,16 @@
       "value": "legal_document_assistant",
       "label": "Legal Document Assistant Agent",
       "description": "Drafts, reviews, and answers questions about legal documents and contracts. Helps identify key clauses, risks, and obligations in legal texts.",
-      "defaultModel": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
+      "defaultModel": "litellm:openai/gemma-4-26B-legal",
       "aiGroups": ["/ai-group/admin", "/ai-group/business"],
       "models": [
         {
-          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
+          "value": "litellm:openai/gemma-4-26B-legal",
+          "label": "gemma-4-26B-legal"
         },
         {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "Qwen3.6-27B-AWQ-INT4"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
         }
       ]
     },
@@ -357,16 +420,16 @@
       "value": "pure_local_chat",
       "label": "Pure Local Chat Agent",
       "description": "Local-only chat with no external data retrieval. Use for privacy-sensitive conversations or offline reasoning without any knowledge base access.",
-      "defaultModel": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
+      "defaultModel": "litellm:openai/gemma-4-26B-A4B",
       "aiGroups": ["/ai-group/admin", "/ai-group/it", "/ai-group/business"],
       "models": [
         {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "Qwen3.6-27B-AWQ-INT4"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
         },
         {
-          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
+          "value": "litellm:openai/gemma-4-26B-A4B",
+          "label": "gemma-4-26B-A4B"
         }
       ]
     }
@@ -377,11 +440,15 @@
       "label": "MMRU"
     },
     {
+      "value": "PLZRU2",
+      "label": "PLZRU2"
+    },
+    {
       "value": "SB",
       "label": "SB",
       "availableModels": [
-        "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-        "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
+        "litellm:openai/Qwen3.8-27B",
+        "litellm:openai/gemma-4-26B-A4B"
       ]
     },
     {

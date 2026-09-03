@@ -43,19 +43,23 @@
         "Create a chart of daily active users for the past 30 days"
       ],
       "defaultModel": "litellm:openai/gpt-5.4-mini",
-      "aiGroups": ["/MMRU/ai-group/admin", "/MMRU/ai-group/it", "/MMRU/ai-group/business"],
+      "aiGroups": [
+        "/MMRU/ai-group/admin",
+        "/MMRU/ai-group/it",
+        "/MMRU/ai-group/business"
+      ],
       "models": [
         {
           "value": "litellm:openai/gpt-oss-20b",
           "label": "litellm:openai/gpt-oss-20b"
         },
         {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "litellm:openai/Qwen3.8-27B"
         },
         {
-          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
+          "value": "litellm:openai/gemma-4-26B-A4B",
+          "label": "litellm:openai/gemma-4-26B-A4B"
         },
         {
           "value": "litellm:openai/gpt-5.4-mini",
@@ -73,19 +77,23 @@
         "What are the current KYC requirements?"
       ],
       "defaultModel": "litellm:openai/gpt-5.4-mini",
-      "aiGroups": ["/MMRU/ai-group/admin", "/MMRU/ai-group/it", "/MMRU/ai-group/business"],
+      "aiGroups": [
+        "/MMRU/ai-group/admin",
+        "/MMRU/ai-group/it",
+        "/MMRU/ai-group/business"
+      ],
       "models": [
         {
           "value": "litellm:openai/gpt-oss-20b",
           "label": "litellm:openai/gpt-oss-20b"
         },
         {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "litellm:openai/Qwen3.8-27B"
         },
         {
-          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
+          "value": "litellm:openai/gemma-4-26B-A4B",
+          "label": "litellm:openai/gemma-4-26B-A4B"
         },
         {
           "value": "litellm:openai/gpt-5.4-mini",
@@ -97,7 +105,7 @@
       "value": "pure_local_chat",
       "label": "Pure Local Chat Agent",
       "description": "Local-only chat with no external data retrieval. Use for privacy-sensitive conversations or offline reasoning without any knowledge base access.",
-      "defaultModel": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
+      "defaultModel": "litellm:openai/gemma-4-26B-A4B",
       "aiGroups": ["/MMRU/ai-group/admin"],
       "models": [
         {
@@ -105,12 +113,12 @@
           "label": "litellm:openai/gpt-oss-20b"
         },
         {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "litellm:openai/Qwen3.6-27B-AWQ-INT4"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "litellm:openai/Qwen3.8-27B"
         },
         {
-          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
+          "value": "litellm:openai/gemma-4-26B-A4B",
+          "label": "litellm:openai/gemma-4-26B-A4B"
         }
       ]
     },
@@ -124,7 +132,11 @@
         "Help me draft a response to a billing complaint ticket"
       ],
       "defaultModel": "litellm:openai/gpt-5.4-mini",
-      "aiGroups": ["/MMRU/ai-group/admin", "/MMRU/ai-group/it", "/MMRU/ai-group/business"],
+      "aiGroups": [
+        "/MMRU/ai-group/admin",
+        "/MMRU/ai-group/it",
+        "/MMRU/ai-group/business"
+      ],
       "models": [
         {
           "value": "litellm:openai/gpt-5.4-mini",
@@ -244,7 +256,11 @@
         "Produce a financial summary and risk assessment for the deal"
       ],
       "defaultModel": "litellm:openai/gpt-5.4-mini",
-      "aiGroups": ["/MMRU/ai-group/admin", "/MMRU/ai-group/it", "/MMRU/ai-group/business"],
+      "aiGroups": [
+        "/MMRU/ai-group/admin",
+        "/MMRU/ai-group/it",
+        "/MMRU/ai-group/business"
+      ],
       "models": [
         {
           "value": "litellm:openai/gpt-5.4-mini",
@@ -261,7 +277,7 @@
         "Draft a standard software services agreement for a B2B client",
         "What are the key obligations and termination conditions in this contract?"
       ],
-      "defaultModel": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
+      "defaultModel": "litellm:openai/gemma-4-26B-A4B",
       "aiGroups": ["/MMRU/ai-group/admin", "/MMRU/ai-group/business"],
       "models": [
         {
@@ -269,8 +285,8 @@
           "label": "litellm:openai/gpt-oss-20b"
         },
         {
-          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit"
+          "value": "litellm:openai/gemma-4-26B-A4B",
+          "label": "litellm:openai/gemma-4-26B-A4B"
         }
       ]
     },
@@ -281,14 +297,14 @@
       "exampleQuestions": [
         "Do a history review for task MMRU-1234",
         "Do a history review for task MMRU-1234 and publish the report to Confluence",
-        "Review the dev team's AI work for sprint 'RU - Milestone 339' in MMRU — a per-sprint summary for the team lead"
+        "Invoke sprint-review for DEP_DEV team sprint 341 in project MMRU\nPROJECT: MMRU\nSPRINT_NUM: 341\nDISCIPLINE: DEP_DEV\nTask: sprint × discipline AI-review roll-up for the team lead and mentor."
       ],
-      "defaultModel": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
+      "defaultModel": "litellm:openai/Qwen3.8-27B",
       "aiGroups": ["/MMRU/ai-group/admin"],
       "models": [
         {
-          "value": "litellm:openai/Qwen3.6-27B-AWQ-INT4",
-          "label": "Qwen3.6-27B-AWQ-INT4"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
         },
         {
           "value": "litellm:deepseek/deepseek-v4-flash",
@@ -299,8 +315,30 @@
           "label": "deepseek-v4-pro"
         },
         {
-          "value": "litellm:openai/gemma-4-26B-A4B-it-AWQ-4bit",
-          "label": "gemma-4-26B-A4B-it-AWQ-4bit"
+          "value": "litellm:openai/gemma-4-26B-A4B",
+          "label": "gemma-4-26B-A4B"
+        }
+      ]
+    },
+    {
+      "value": "product_alert_rca",
+      "label": "Product Alert RCA Agent",
+      "description": "Root-cause analysis for hourly AR/IR conversion alerts (MMRU): validates the alert, localizes the broken funnel step in ClickHouse, then correlates with deploys, newly appeared component errors and per-component metrics, and returns ranked causes with a check-this-first list.",
+      "exampleQuestions": [
+        "ar_new_1h ALERT 03:00-04:00 MSK, conversion 41.2%, target 58.7% — find the root cause",
+        "ir_old_1h dropped this hour — disbursement problem or a data artifact?",
+        "Which funnel step broke in the last 3 hours and what changed?"
+      ],
+      "defaultModel": "litellm:openai/Qwen3.8-27B",
+      "aiGroups": ["/MMRU/ai-group/admin"],
+      "models": [
+        {
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-v4-flash",
+          "label": "deepseek-v4-flash"
         }
       ]
     }
