@@ -23,9 +23,17 @@ import {
   ImageIcon,
   File as FileIconLucide,
   Sparkles,
+  AlertTriangle,
 } from "lucide-react";
 import { ChatMessage } from "@/app/components/ChatMessage";
-import type { Attachment, FileItem, SubAgentRun, TodoItem, ToolCall } from "@/app/types/types";
+import { RunStatusBar } from "@/app/components/RunStatusBar";
+import type {
+  Attachment,
+  FileItem,
+  SubAgentRun,
+  TodoItem,
+  ToolCall,
+} from "@/app/types/types";
 import { FileViewDialog } from "@/app/components/FileViewDialog";
 import { Assistant, Message } from "@langchain/langgraph-sdk";
 import {
@@ -56,6 +64,13 @@ import {
 
 const EXAMPLE_QUESTION_MAX_LENGTH = 140;
 
+type RejectedFile = {
+  id: string;
+  name: string;
+  size: number;
+  reason: string;
+};
+
 interface ChatInterfaceProps {
   assistant: Assistant | null;
   debugMode: boolean;
@@ -75,7 +90,10 @@ interface ChatInterfaceProps {
   isAttachmentsAllowed?: boolean;
 }
 
-function readFileAsAttachment(file: File): Promise<Attachment> {
+function readFileAsAttachment(
+  file: File,
+  onProgress?: (percent: number) => void
+): Promise<Attachment> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     const isImage = isImageFile(file.type, file.name);
@@ -84,9 +102,15 @@ function readFileAsAttachment(file: File): Promise<Attachment> {
     const makeId = () =>
       `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
+    reader.onprogress = (e) => {
+      if (!e.lengthComputable) return;
+      onProgress?.(Math.round((e.loaded / e.total) * 100));
+    };
+
     if (isImage) {
       // Read as base64 for images - also generate a preview
       reader.onload = () => {
+        onProgress?.(100);
         const dataUrl = reader.result as string;
         const base64 = dataUrl.split(",")[1] || "";
         resolve({
@@ -103,6 +127,7 @@ function readFileAsAttachment(file: File): Promise<Attachment> {
     } else if (isDocument) {
       // Read as base64 for documents - will be uploaded to files state and parsed server-side
       reader.onload = () => {
+        onProgress?.(100);
         const dataUrl = reader.result as string;
         const base64 = dataUrl.split(",")[1] || "";
         resolve({
@@ -119,6 +144,7 @@ function readFileAsAttachment(file: File): Promise<Attachment> {
     } else if (isText) {
       // Read as text for text files
       reader.onload = () => {
+        onProgress?.(100);
         resolve({
           id: makeId(),
           name: file.name,
@@ -132,6 +158,7 @@ function readFileAsAttachment(file: File): Promise<Attachment> {
     } else {
       // Read as base64 for other binary files
       reader.onload = () => {
+        onProgress?.(100);
         const dataUrl = reader.result as string;
         const base64 = dataUrl.split(",")[1] || "";
         resolve({
@@ -203,8 +230,22 @@ function notifyAgentError(err: unknown, prefix: string): void {
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
 
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
+function limitGroupLabel(isImage: boolean, isTxt: boolean): string {
+  if (isImage) return "images";
+  if (isTxt) return "text files (CSV, TXT, MD, JSON)";
+
+  return "documents";
+}
+
+function makeFileId(fileName: string): string {
+  return `${fileName}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 const getStatusIcon = (status: TodoItem["status"], className?: string) => {
@@ -260,9 +301,10 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [attachments, setAttachments] = useState<Attachment[]>([]);
-    const [loadingAttachmentIds, setLoadingAttachmentIds] = useState<Set<string>>(
-      () => new Set()
-    );
+    const [uploadProgress, setUploadProgress] = useState<
+      Record<string, number>
+    >({});
+    const [rejectedFiles, setRejectedFiles] = useState<RejectedFile[]>([]);
     const [isDragOver, setIsDragOver] = useState(false);
     const isControlledView = typeof view !== "undefined";
     const workflowView = isControlledView
@@ -311,6 +353,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       async (fileList: FileList | File[]) => {
         if (!isAttachmentsAllowed) return;
         const files = Array.from(fileList);
+        const rejected: RejectedFile[] = [];
         const validFiles = files.filter((f) => {
           const isImage = isImageFile(f.type, f.name);
           const isDoc = isDocumentFile(f.type, f.name);
@@ -319,7 +362,12 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           const isAllowed = isImage || isDoc || isTxt;
 
           if (!isAllowed) {
-            toast.error(`File "${f.name}" has unsupported type, skipping.`);
+            rejected.push({
+              id: makeFileId(f.name),
+              name: f.name,
+              size: f.size,
+              reason: "unsupported file type",
+            });
 
             return false;
           }
@@ -332,21 +380,42 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
               : MAX_FILE_SIZE_DEFAULT;
 
           if (f.size > maxSize) {
-            const limitMb = (maxSize / (1024 * 1024)).toFixed(0);
-            console.warn(
-              `File "${f.name}" exceeds ${limitMb} MB limit for this type, skipping.`
-            );
+            rejected.push({
+              id: makeFileId(f.name),
+              name: f.name,
+              size: f.size,
+              reason: `${formatFileSize(f.size)} — over the ${formatFileSize(
+                maxSize
+              )} limit for ${limitGroupLabel(isImage, isTxt)}`,
+            });
 
             return false;
           }
 
           return true;
         });
+
+        if (rejected.length > 0) {
+          setRejectedFiles((prev) => [...prev, ...rejected]);
+          if (rejected.length === 1) {
+            const file = rejected[0];
+            toast.error(`"${file.name}" was not attached. ${file.reason}`, {
+              duration: 8000,
+            });
+          } else {
+            toast.error(`${rejected.length} files were not attached`, {
+              description: rejected
+                .map((file) => `${file.name}: ${file.reason}`)
+                .join("\n"),
+              duration: 8000,
+            });
+          }
+        }
         if (validFiles.length === 0) return;
 
         const filesWithTempIds = validFiles.map((file) => ({
           file,
-          tempId: `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          tempId: makeFileId(file.name),
         }));
 
         const tempAttachments = filesWithTempIds.map(({ file, tempId }) => ({
@@ -359,47 +428,96 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
 
         setAttachments((prev) => [...prev, ...tempAttachments]);
 
-        setLoadingAttachmentIds((prev) => {
-          const next = new Set(prev);
-          filesWithTempIds.forEach(({ tempId }) => next.add(tempId));
+        setUploadProgress((prev) => {
+          const next = { ...prev };
+          filesWithTempIds.forEach(({ tempId }) => {
+            next[tempId] = 0;
+          });
 
           return next;
         });
 
-        const newAttachments = await Promise.all(
-          filesWithTempIds.map(async ({ file, tempId }) => ({
-            tempId,
-            attachment: {
-              ...(await readFileAsAttachment(file)),
-              id: tempId,
-            },
-          }))
-        );
+        try {
+          const results = await Promise.allSettled(
+            filesWithTempIds.map(async ({ file, tempId }) => ({
+              tempId,
+              attachment: {
+                ...(await readFileAsAttachment(file, (percent) => {
+                  if (!isMountedRef.current) return;
+                  setUploadProgress((prev) => {
+                    if (prev[tempId] === percent) return prev;
 
-        if (!isMountedRef.current) {
-          return;
-        }
-
-        setAttachments((prev) => {
-          const byTempId = new Map(
-            newAttachments.map(({ tempId, attachment }) => [tempId, attachment])
+                    return { ...prev, [tempId]: percent };
+                  });
+                })),
+                id: tempId,
+              },
+            }))
           );
 
-          return prev.map((attachment) => byTempId.get(attachment.id) ?? attachment);
-        });
+          if (!isMountedRef.current) {
+            return;
+          }
 
-        setLoadingAttachmentIds((prev) => {
-          const next = new Set(prev);
-          filesWithTempIds.forEach(({ tempId }) => next.delete(tempId));
+          const succeeded: Array<{ tempId: string; attachment: Attachment }> =
+            [];
+          const failedIds = new Set<string>();
+          const failedNames: string[] = [];
 
-          return next;
-        });
+          results.forEach((result, index) => {
+            const { tempId, file } = filesWithTempIds[index];
+            if (result.status === "fulfilled") {
+              succeeded.push(result.value);
+            } else {
+              failedIds.add(tempId);
+              failedNames.push(file.name);
+            }
+          });
+
+          if (failedNames.length === 1) {
+            toast.error(`Couldn't read "${failedNames[0]}".`);
+          } else if (failedNames.length > 1) {
+            toast.error(`${failedNames.length} files could not be read.`);
+          }
+
+          setAttachments((prev) => {
+            const byTempId = new Map(
+              succeeded.map(({ tempId, attachment }) => [tempId, attachment])
+            );
+
+            return prev
+              .filter((attachment) => !failedIds.has(attachment.id))
+              .map((attachment) => byTempId.get(attachment.id) ?? attachment);
+          });
+        } finally {
+          if (isMountedRef.current) {
+            setUploadProgress((prev) => {
+              const next = { ...prev };
+              filesWithTempIds.forEach(({ tempId }) => {
+                delete next[tempId];
+              });
+
+              return next;
+            });
+          }
+        }
       },
       [isAttachmentsAllowed]
     );
 
     const removeAttachment = useCallback((id: string) => {
       setAttachments((prev) => prev.filter((a) => a.id !== id));
+      setUploadProgress((prev) => {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+
+        return next;
+      });
+    }, []);
+
+    const removeRejectedFile = useCallback((id: string) => {
+      setRejectedFiles((prev) => prev.filter((file) => file.id !== id));
     }, []);
 
     const handleFileInputChange = useCallback(
@@ -475,6 +593,9 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       continueStream,
       stopStream,
       responseDurationByAiMessageId,
+      isSubmittingAttachments,
+      runStartedAtRef,
+      lastEventAtRef,
     } = useChatContext();
 
     // Surface a run failure the moment the stream errors — a connectivity drop
@@ -496,6 +617,9 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     useEffect(() => {
       // Reset cached subagent timelines when switching threads.
       subAgentRunsCacheRef.current = {};
+      setAttachments([]);
+      setUploadProgress({});
+      setRejectedFiles([]);
     }, [threadId, agentId]);
 
     // Bridge for child components (e.g. ChartAppRenderer) to save a file into
@@ -524,10 +648,24 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       return () => window.removeEventListener("mcp-ui-save-file", onSave);
     }, [files, setFiles]);
 
-
-    const isUploadingAttachments = loadingAttachmentIds.size > 0;
-    const submitDisabled = isLoading || isUploadingAttachments || !assistant;
+    const isUploadingAttachments = Object.keys(uploadProgress).length > 0;
+    const submitDisabled =
+      isLoading ||
+      isUploadingAttachments ||
+      isSubmittingAttachments ||
+      !assistant;
     const hasAttachments = attachments.length > 0;
+    const hasRejectedFiles = rejectedFiles.length > 0;
+    const readingFileCount = Object.keys(uploadProgress).length;
+    const readingPercent =
+      readingFileCount > 0
+        ? Math.round(
+            Object.values(uploadProgress).reduce(
+              (sum, value) => sum + value,
+              0
+            ) / readingFileCount
+          )
+        : 0;
 
     // Resolve a chat file-chip name to its entry in `files` state and open the
     // preview dialog. Uploads live under `uploads/<name>`; fall back to a direct
@@ -601,13 +739,18 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
         const messageText = input.trim();
         if ((!messageText && !hasAttachments) || isLoading) return;
 
-        void sendMessage(
-          messageText,
-          hasAttachments ? attachments : undefined
-        ).catch((err) => notifyAgentError(err, "Couldn't send your message"));
+        const submittedIds = new Set(attachments.map((file) => file.id));
+        void sendMessage(messageText, hasAttachments ? attachments : undefined)
+          .then(() => {
+            if (!isMountedRef.current) return;
+            setAttachments((prev) =>
+              prev.filter((file) => !submittedIds.has(file.id))
+            );
+            setRejectedFiles([]);
+          })
+          .catch((err) => notifyAgentError(err, "Couldn't send your message"));
 
         setInput("");
-        setAttachments([]);
       },
       [
         input,
@@ -674,324 +817,362 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
 
     // Reserved: additional UI state
     // TODO: can we make this part of the hook?
-    const { processedMessages, subAgentRunsByTaskId, totalTokenUsage } = useMemo(() => {
-      /*
+    const { processedMessages, subAgentRunsByTaskId, totalTokenUsage } =
+      useMemo(() => {
+        /*
      1. Loop through all messages
      2. For each AI message, add the AI message, and any tool calls to the messageMap
      3. For each tool message, find the corresponding tool call in the messageMap and update the status and output
     */
-      const extractToolCallsFromAiMessage = (
-        message: Message & { type: "ai" }
-      ): Array<{
-        id?: string;
-        function?: { name?: string; arguments?: unknown };
-        name?: string;
-        type?: string;
-        args?: unknown;
-        input?: unknown;
-      }> => {
-        const toolCallsInMessage: Array<{
+        const extractToolCallsFromAiMessage = (
+          message: Message & { type: "ai" }
+        ): Array<{
           id?: string;
           function?: { name?: string; arguments?: unknown };
           name?: string;
           type?: string;
           args?: unknown;
           input?: unknown;
-        }> = [];
-        const msgAny = message as any;
-        if (
-          msgAny.additional_kwargs?.tool_calls &&
-          Array.isArray(msgAny.additional_kwargs.tool_calls)
-        ) {
-          toolCallsInMessage.push(...msgAny.additional_kwargs.tool_calls);
-        } else if (msgAny.tool_calls && Array.isArray(msgAny.tool_calls)) {
-          toolCallsInMessage.push(
-            ...msgAny.tool_calls.filter(
-              (toolCall: { name?: string }) => toolCall.name !== ""
-            )
-          );
-        } else if (Array.isArray(msgAny.content)) {
-          const toolUseBlocks = msgAny.content.filter(
-            (block: { type?: string }) => block.type === "tool_use"
-          );
-          toolCallsInMessage.push(...toolUseBlocks);
-        }
+        }> => {
+          const toolCallsInMessage: Array<{
+            id?: string;
+            function?: { name?: string; arguments?: unknown };
+            name?: string;
+            type?: string;
+            args?: unknown;
+            input?: unknown;
+          }> = [];
+          const msgAny = message as any;
+          if (
+            msgAny.additional_kwargs?.tool_calls &&
+            Array.isArray(msgAny.additional_kwargs.tool_calls)
+          ) {
+            toolCallsInMessage.push(...msgAny.additional_kwargs.tool_calls);
+          } else if (msgAny.tool_calls && Array.isArray(msgAny.tool_calls)) {
+            toolCallsInMessage.push(
+              ...msgAny.tool_calls.filter(
+                (toolCall: { name?: string }) => toolCall.name !== ""
+              )
+            );
+          } else if (Array.isArray(msgAny.content)) {
+            const toolUseBlocks = msgAny.content.filter(
+              (block: { type?: string }) => block.type === "tool_use"
+            );
+            toolCallsInMessage.push(...toolUseBlocks);
+          }
 
-        return toolCallsInMessage;
-      };
+          return toolCallsInMessage;
+        };
 
-      const toToolCall = (
-        raw: {
-        id?: string;
-        function?: { name?: string; arguments?: unknown };
-        name?: string;
-        type?: string;
-        args?: unknown;
-        input?: unknown;
-        },
-        order?: number
-      ): ToolCall => {
-        const name =
-          raw.function?.name || raw.name || raw.type || "unknown";
-        const rawArgs =
-          raw.function?.arguments || raw.args || raw.input || {};
-        let args: Record<string, unknown> = {};
-        try {
-          args =
-            typeof rawArgs === "string"
-              ? (JSON.parse(rawArgs) as Record<string, unknown>)
-              : rawArgs && typeof rawArgs === "object"
+        const toToolCall = (
+          raw: {
+            id?: string;
+            function?: { name?: string; arguments?: unknown };
+            name?: string;
+            type?: string;
+            args?: unknown;
+            input?: unknown;
+          },
+          order?: number
+        ): ToolCall => {
+          const name = raw.function?.name || raw.name || raw.type || "unknown";
+          const rawArgs =
+            raw.function?.arguments || raw.args || raw.input || {};
+          let args: Record<string, unknown> = {};
+          try {
+            args =
+              typeof rawArgs === "string"
+                ? (JSON.parse(rawArgs) as Record<string, unknown>)
+                : rawArgs && typeof rawArgs === "object"
                 ? (rawArgs as Record<string, unknown>)
                 : {};
-        } catch {
-          args = { raw: rawArgs };
-        }
-
-        return {
-          id: raw.id || `tool-${Math.random()}`,
-          name,
-          args,
-          status: interrupt ? "interrupted" : "pending",
-          order,
-        };
-      };
-
-      const messageMap = new Map<
-        string,
-        { message: Message; toolCalls: ToolCall[] }
-      >();
-
-      // Derive subagent (task tool) “run windows” and internal progress/tool calls.
-      // This is best-effort: if the backend does not stream internal subagent messages,
-      // the run will simply have empty progress/toolCalls (and the UI falls back to input/output).
-      const subAgentRunsByTaskId = new Map<string, SubAgentRun>();
-      const activeTaskStack: string[] = [];
-      const activeTaskBySubAgentType = new Map<string, string>();
-
-      const inferActiveTaskIdForMessage = (message: Message): string | null => {
-        if (activeTaskStack.length > 0) {
-          return activeTaskStack[activeTaskStack.length - 1] ?? null;
-        }
-        try {
-          const meta = getMessagesMetadata(message) as any;
-          const activeAssistantName =
-            meta?.activeAssistant?.name ??
-            meta?.activeAssistant?.assistant_id ??
-            meta?.active_assistant?.name;
-          if (typeof activeAssistantName === "string" && activeAssistantName) {
-            return activeTaskBySubAgentType.get(activeAssistantName) ?? null;
+          } catch {
+            args = { raw: rawArgs };
           }
-        } catch {
-          // ignore
-        }
-        return null;
-      };
 
-      messages.forEach((message: Message, messageIndex: number) => {
-        if (message.type === "ai") {
-          const inferredTaskId = inferActiveTaskIdForMessage(message);
-          const toolCallsInMessage = extractToolCallsFromAiMessage(message);
-          const toolCallsWithStatus = toolCallsInMessage.map((tc) =>
-            toToolCall(tc, messageIndex)
-          );
-          // AI messages produced while a subagent (`task`) run is active should only
-          // appear in the subagent timeline, not the main chat transcript.
-          if (!inferredTaskId) {
+          return {
+            id: raw.id || `tool-${Math.random()}`,
+            name,
+            args,
+            status: interrupt ? "interrupted" : "pending",
+            order,
+          };
+        };
+
+        const messageMap = new Map<
+          string,
+          { message: Message; toolCalls: ToolCall[] }
+        >();
+
+        // Derive subagent (task tool) “run windows” and internal progress/tool calls.
+        // This is best-effort: if the backend does not stream internal subagent messages,
+        // the run will simply have empty progress/toolCalls (and the UI falls back to input/output).
+        const subAgentRunsByTaskId = new Map<string, SubAgentRun>();
+        const activeTaskStack: string[] = [];
+        const activeTaskBySubAgentType = new Map<string, string>();
+
+        const inferActiveTaskIdForMessage = (
+          message: Message
+        ): string | null => {
+          if (activeTaskStack.length > 0) {
+            return activeTaskStack[activeTaskStack.length - 1] ?? null;
+          }
+          try {
+            const meta = getMessagesMetadata(message) as any;
+            const activeAssistantName =
+              meta?.activeAssistant?.name ??
+              meta?.activeAssistant?.assistant_id ??
+              meta?.active_assistant?.name;
+            if (
+              typeof activeAssistantName === "string" &&
+              activeAssistantName
+            ) {
+              return activeTaskBySubAgentType.get(activeAssistantName) ?? null;
+            }
+          } catch {
+            // ignore
+          }
+          return null;
+        };
+
+        messages.forEach((message: Message, messageIndex: number) => {
+          if (message.type === "ai") {
+            const inferredTaskId = inferActiveTaskIdForMessage(message);
+            const toolCallsInMessage = extractToolCallsFromAiMessage(message);
+            const toolCallsWithStatus = toolCallsInMessage.map((tc) =>
+              toToolCall(tc, messageIndex)
+            );
+            // AI messages produced while a subagent (`task`) run is active should only
+            // appear in the subagent timeline, not the main chat transcript.
+            if (!inferredTaskId) {
+              messageMap.set(message.id!, {
+                message,
+                toolCalls: toolCallsWithStatus,
+              });
+            }
+
+            // If we’re currently inside a task run, collect AI progress text and nested tool calls.
+            if (inferredTaskId && message.id) {
+              const run = subAgentRunsByTaskId.get(inferredTaskId);
+              if (run) {
+                const text = extractStringFromMessageContent(message).trim();
+                if (text) {
+                  run.progress.push({
+                    messageId: message.id,
+                    order: messageIndex,
+                    text,
+                  });
+                }
+                for (const tc of toolCallsWithStatus) {
+                  // Don’t treat nested `task` calls as regular tool calls (they have their own run).
+                  if (tc.name === "task") continue;
+                  if (run.toolCalls.some((x) => x.id === tc.id)) continue;
+                  run.toolCalls.push(tc);
+                }
+                const usage = (message as any).usage_metadata;
+                if (usage) {
+                  const prev = run.tokenUsage ?? {
+                    input: 0,
+                    output: 0,
+                    total: 0,
+                  };
+                  run.tokenUsage = {
+                    input: prev.input + (usage.input_tokens ?? 0),
+                    output: prev.output + (usage.output_tokens ?? 0),
+                    total: prev.total + (usage.total_tokens ?? 0),
+                  };
+                }
+              }
+            }
+
+            // Detect new task runs (subagents).
+            for (const tc of toolCallsWithStatus) {
+              if (tc.name !== "task") continue;
+              // Each task tool call id is the stable identifier to match the tool result message.
+              const taskId = tc.id;
+              if (!taskId) continue;
+              if (!subAgentRunsByTaskId.has(taskId)) {
+                const subAgentType =
+                  typeof tc.args?.["subagent_type"] === "string"
+                    ? (tc.args["subagent_type"] as string)
+                    : undefined;
+                const msgCreatedAt = (getMessagesMetadata(message) as any)
+                  ?.firstSeenState?.created_at as string | undefined;
+                const startedAt = msgCreatedAt
+                  ? new Date(msgCreatedAt).getTime()
+                  : subAgentRunsCacheRef.current[taskId]?.startedAt ??
+                    Date.now();
+                subAgentRunsByTaskId.set(taskId, {
+                  taskToolCallId: taskId,
+                  subAgentType,
+                  status: tc.status,
+                  progress: [],
+                  toolCalls: [],
+                  startedAt,
+                });
+                activeTaskStack.push(taskId);
+                if (subAgentType) {
+                  activeTaskBySubAgentType.set(subAgentType, taskId);
+                }
+              }
+            }
+          } else if (message.type === "tool") {
+            const toolCallId = message.tool_call_id;
+            if (!toolCallId) {
+              return;
+            }
+            for (const [, data] of messageMap.entries()) {
+              const toolCallIndex = data.toolCalls.findIndex(
+                (tc: ToolCall) => tc.id === toolCallId
+              );
+              if (toolCallIndex === -1) {
+                continue;
+              }
+              const artifact = (message as any).artifact;
+              data.toolCalls[toolCallIndex] = {
+                ...data.toolCalls[toolCallIndex],
+                status: "completed" as const,
+                result: extractStringFromMessageContent(message),
+                artifact: artifact ?? undefined,
+                resultImages: extractImagesFromMessageContent(message),
+              };
+              break;
+            }
+
+            // If this tool result closes a task, mark it completed and pop from stack.
+            const taskRun = subAgentRunsByTaskId.get(toolCallId);
+            if (taskRun) {
+              taskRun.status = interrupt ? "interrupted" : "completed";
+              const toolMsgCreatedAt = (getMessagesMetadata(message) as any)
+                ?.firstSeenState?.created_at as string | undefined;
+              taskRun.endedAt = toolMsgCreatedAt
+                ? new Date(toolMsgCreatedAt).getTime()
+                : subAgentRunsCacheRef.current[toolCallId]?.endedAt ??
+                  Date.now();
+              // Pop only if it’s on stack; tolerate out-of-order/interleaving.
+              const idx = activeTaskStack.lastIndexOf(toolCallId);
+              if (idx !== -1) {
+                activeTaskStack.splice(idx, 1);
+              }
+              if (taskRun.subAgentType) {
+                const current = activeTaskBySubAgentType.get(
+                  taskRun.subAgentType
+                );
+                if (current === toolCallId) {
+                  activeTaskBySubAgentType.delete(taskRun.subAgentType);
+                }
+              }
+              return;
+            }
+
+            // Otherwise, it may be a nested tool call result inside the current task run.
+            const inferredTaskId = inferActiveTaskIdForMessage(message);
+            if (inferredTaskId) {
+              const run = subAgentRunsByTaskId.get(inferredTaskId);
+              if (run) {
+                const nestedIdx = run.toolCalls.findIndex(
+                  (tc) => tc.id === toolCallId
+                );
+                const toolResultText = extractStringFromMessageContent(message);
+                const toolResultImages =
+                  extractImagesFromMessageContent(message);
+                if (nestedIdx !== -1) {
+                  run.toolCalls[nestedIdx] = {
+                    ...run.toolCalls[nestedIdx],
+                    status: "completed",
+                    result: toolResultText,
+                    resultImages: toolResultImages,
+                  };
+                }
+              }
+            }
+          } else if (message.type === "human") {
             messageMap.set(message.id!, {
               message,
-              toolCalls: toolCallsWithStatus,
+              toolCalls: [],
             });
           }
+        });
+        const processedArray = Array.from(messageMap.values());
+        const processedMessages = processedArray.map((data, index) => {
+          const prevMessage =
+            index > 0 ? processedArray[index - 1].message : null;
 
-          // If we’re currently inside a task run, collect AI progress text and nested tool calls.
-          if (inferredTaskId && message.id) {
-            const run = subAgentRunsByTaskId.get(inferredTaskId);
-            if (run) {
-              const text = extractStringFromMessageContent(message).trim();
-              if (text) {
-                run.progress.push({
-                  messageId: message.id,
-                  order: messageIndex,
-                  text,
-                });
-              }
-              for (const tc of toolCallsWithStatus) {
-                // Don’t treat nested `task` calls as regular tool calls (they have their own run).
-                if (tc.name === "task") continue;
-                if (run.toolCalls.some((x) => x.id === tc.id)) continue;
-                run.toolCalls.push(tc);
-              }
-              const usage = (message as any).usage_metadata;
-              if (usage) {
-                const prev = run.tokenUsage ?? { input: 0, output: 0, total: 0 };
-                run.tokenUsage = {
-                  input: prev.input + (usage.input_tokens ?? 0),
-                  output: prev.output + (usage.output_tokens ?? 0),
-                  total: prev.total + (usage.total_tokens ?? 0),
-                };
-              }
-            }
-          }
+          return {
+            ...data,
+            showAvatar: data.message.type !== prevMessage?.type,
+          };
+        });
+        const computedRuns = Object.fromEntries(subAgentRunsByTaskId.entries());
 
-          // Detect new task runs (subagents).
-          for (const tc of toolCallsWithStatus) {
-            if (tc.name !== "task") continue;
-            // Each task tool call id is the stable identifier to match the tool result message.
-            const taskId = tc.id;
-            if (!taskId) continue;
-            if (!subAgentRunsByTaskId.has(taskId)) {
-              const subAgentType =
-                typeof tc.args?.["subagent_type"] === "string"
-                  ? (tc.args["subagent_type"] as string)
-                  : undefined;
-              const msgCreatedAt = (getMessagesMetadata(message) as any)
-                ?.firstSeenState?.created_at as string | undefined;
-              const startedAt = msgCreatedAt
-                ? new Date(msgCreatedAt).getTime()
-                : subAgentRunsCacheRef.current[taskId]?.startedAt ?? Date.now();
-              subAgentRunsByTaskId.set(taskId, {
-                taskToolCallId: taskId,
-                subAgentType,
-                status: tc.status,
-                progress: [],
-                toolCalls: [],
-                startedAt,
-              });
-              activeTaskStack.push(taskId);
-              if (subAgentType) {
-                activeTaskBySubAgentType.set(subAgentType, taskId);
-              }
-            }
-          }
-        } else if (message.type === "tool") {
-          const toolCallId = message.tool_call_id;
-          if (!toolCallId) {
-            return;
-          }
-          for (const [, data] of messageMap.entries()) {
-            const toolCallIndex = data.toolCalls.findIndex(
-              (tc: ToolCall) => tc.id === toolCallId
-            );
-            if (toolCallIndex === -1) {
-              continue;
-            }
-            const artifact = (message as any).artifact;
-            data.toolCalls[toolCallIndex] = {
-              ...data.toolCalls[toolCallIndex],
-              status: "completed" as const,
-              result: extractStringFromMessageContent(message),
-              artifact: artifact ?? undefined,
-              resultImages: extractImagesFromMessageContent(message),
-            };
-            break;
-          }
+        // Merge with cached runs so stream-only subgraph events don’t disappear
+        // once the run finishes and the persisted message history is reloaded.
+        const merged: Record<string, SubAgentRun> = {
+          ...subAgentRunsCacheRef.current,
+          ...computedRuns,
+        };
+        for (const [taskId, run] of Object.entries(computedRuns)) {
+          const prev = subAgentRunsCacheRef.current[taskId];
+          if (!prev) continue;
 
-          // If this tool result closes a task, mark it completed and pop from stack.
-          const taskRun = subAgentRunsByTaskId.get(toolCallId);
-          if (taskRun) {
-            taskRun.status = interrupt ? "interrupted" : "completed";
-            const toolMsgCreatedAt = (getMessagesMetadata(message) as any)
-              ?.firstSeenState?.created_at as string | undefined;
-            taskRun.endedAt = toolMsgCreatedAt
-              ? new Date(toolMsgCreatedAt).getTime()
-              : subAgentRunsCacheRef.current[toolCallId]?.endedAt ?? Date.now();
-            // Pop only if it’s on stack; tolerate out-of-order/interleaving.
-            const idx = activeTaskStack.lastIndexOf(toolCallId);
-            if (idx !== -1) {
-              activeTaskStack.splice(idx, 1);
-            }
-            if (taskRun.subAgentType) {
-              const current = activeTaskBySubAgentType.get(taskRun.subAgentType);
-              if (current === toolCallId) {
-                activeTaskBySubAgentType.delete(taskRun.subAgentType);
-              }
-            }
-            return;
+          // Preserve previously seen timeline items if the newly computed run is empty.
+          if (run.progress.length === 0 && prev.progress.length > 0) {
+            merged[taskId] = { ...merged[taskId], progress: prev.progress };
           }
-
-          // Otherwise, it may be a nested tool call result inside the current task run.
-          const inferredTaskId = inferActiveTaskIdForMessage(message);
-          if (inferredTaskId) {
-            const run = subAgentRunsByTaskId.get(inferredTaskId);
-            if (run) {
-              const nestedIdx = run.toolCalls.findIndex((tc) => tc.id === toolCallId);
-              const toolResultText = extractStringFromMessageContent(message);
-              const toolResultImages = extractImagesFromMessageContent(message);
-              if (nestedIdx !== -1) {
-                run.toolCalls[nestedIdx] = {
-                  ...run.toolCalls[nestedIdx],
-                  status: "completed",
-                  result: toolResultText,
-                  resultImages: toolResultImages,
-                };
-              }
-            }
+          if (run.toolCalls.length === 0 && prev.toolCalls.length > 0) {
+            merged[taskId] = { ...merged[taskId], toolCalls: prev.toolCalls };
           }
-        } else if (message.type === "human") {
-          messageMap.set(message.id!, {
-            message,
-            toolCalls: [],
-          });
+          if (!run.tokenUsage && prev.tokenUsage) {
+            merged[taskId] = { ...merged[taskId], tokenUsage: prev.tokenUsage };
+          }
         }
-      });
-      const processedArray = Array.from(messageMap.values());
-      const processedMessages = processedArray.map((data, index) => {
-        const prevMessage =
-          index > 0 ? processedArray[index - 1].message : null;
+
+        subAgentRunsCacheRef.current = merged;
+
+        // Aggregate token usage across all AI messages in the thread.
+        const totalTokenUsage = messages.reduce(
+          (acc, msg) => {
+            if (msg.type !== "ai") return acc;
+            const usage = (msg as any).usage_metadata;
+            if (!usage) return acc;
+            return {
+              input: acc.input + (usage.input_tokens ?? 0),
+              output: acc.output + (usage.output_tokens ?? 0),
+              total: acc.total + (usage.total_tokens ?? 0),
+            };
+          },
+          { input: 0, output: 0, total: 0 }
+        );
+        const hasTotalUsage = totalTokenUsage.total > 0;
 
         return {
-          ...data,
-          showAvatar: data.message.type !== prevMessage?.type,
+          processedMessages,
+          subAgentRunsByTaskId: merged,
+          totalTokenUsage: hasTotalUsage ? totalTokenUsage : undefined,
         };
-      });
-      const computedRuns = Object.fromEntries(subAgentRunsByTaskId.entries());
+      }, [messages, interrupt, getMessagesMetadata]);
 
-      // Merge with cached runs so stream-only subgraph events don’t disappear
-      // once the run finishes and the persisted message history is reloaded.
-      const merged: Record<string, SubAgentRun> = {
-        ...subAgentRunsCacheRef.current,
-        ...computedRuns,
-      };
-      for (const [taskId, run] of Object.entries(computedRuns)) {
-        const prev = subAgentRunsCacheRef.current[taskId];
-        if (!prev) continue;
+    const currentActivity = useMemo(() => {
+      if (!isLoading) return null;
+      for (let i = processedMessages.length - 1; i >= 0; i -= 1) {
+        const pending = processedMessages[i].toolCalls.find(
+          (tc) => tc.status === "pending"
+        );
+        if (pending) {
+          const subagentType = pending.args?.subagent_type;
 
-        // Preserve previously seen timeline items if the newly computed run is empty.
-        if (run.progress.length === 0 && prev.progress.length > 0) {
-          merged[taskId] = { ...merged[taskId], progress: prev.progress };
-        }
-        if (run.toolCalls.length === 0 && prev.toolCalls.length > 0) {
-          merged[taskId] = { ...merged[taskId], toolCalls: prev.toolCalls };
-        }
-        if (!run.tokenUsage && prev.tokenUsage) {
-          merged[taskId] = { ...merged[taskId], tokenUsage: prev.tokenUsage };
+          return pending.name === "task"
+            ? `Subagent: ${
+                typeof subagentType === "string" ? subagentType : "task"
+              }`
+            : `Tool: ${pending.name}`;
         }
       }
 
-      subAgentRunsCacheRef.current = merged;
-
-      // Aggregate token usage across all AI messages in the thread.
-      const totalTokenUsage = messages.reduce(
-        (acc, msg) => {
-          if (msg.type !== "ai") return acc;
-          const usage = (msg as any).usage_metadata;
-          if (!usage) return acc;
-          return {
-            input: acc.input + (usage.input_tokens ?? 0),
-            output: acc.output + (usage.output_tokens ?? 0),
-            total: acc.total + (usage.total_tokens ?? 0),
-          };
-        },
-        { input: 0, output: 0, total: 0 },
+      return (
+        todos.find((t) => t.status === "in_progress")?.content ?? "Thinking…"
       );
-      const hasTotalUsage = totalTokenUsage.total > 0;
-
-      return {
-        processedMessages,
-        subAgentRunsByTaskId: merged,
-        totalTokenUsage: hasTotalUsage ? totalTokenUsage : undefined,
-      };
-    }, [messages, interrupt, getMessagesMetadata]);
+    }, [isLoading, processedMessages, todos]);
 
     const toggle = !hideInternalToggle && (
       <div className="flex w-full justify-center">
@@ -1111,74 +1292,79 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
               skeleton
             ) : (
               <>
-                {processedMessages.length === 0 && (agentDescription ?? assistant?.name) && (
-                  <div className="flex min-h-[70vh] flex-col">
-                    <div className="flex flex-1 items-center justify-center px-6">
-                      <div className="max-w-lg text-center opacity-60">
-                        <p className="text-lg font-semibold text-foreground">
-                          {assistant?.name ?? assistant?.assistant_id}
-                        </p>
-                        {agentDescription && (
-                          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                            {agentDescription}
+                {processedMessages.length === 0 &&
+                  (agentDescription ?? assistant?.name) && (
+                    <div className="flex min-h-[70vh] flex-col">
+                      <div className="flex flex-1 items-center justify-center px-6">
+                        <div className="max-w-lg text-center opacity-60">
+                          <p className="text-lg font-semibold text-foreground">
+                            {assistant?.name ?? assistant?.assistant_id}
                           </p>
-                        )}
-                      </div>
-                    </div>
-                    {exampleQuestions && exampleQuestions.length > 0 && (
-                      <div className="flex w-full max-w-xl flex-col gap-3 px-6 pb-2 pt-8">
-                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#2F6868]">
-                          <Sparkles size={14} />
-                          <span>Try asking</span>
+                          {agentDescription && (
+                            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                              {agentDescription}
+                            </p>
+                          )}
                         </div>
-                        <div className="flex flex-col gap-2">
-                          {exampleQuestions.map((question, i) => {
-                            const isTruncated =
-                              question.length > EXAMPLE_QUESTION_MAX_LENGTH;
-                            const displayText = isTruncated
-                              ? `${question.slice(0, EXAMPLE_QUESTION_MAX_LENGTH).trimEnd()}…`
-                              : question;
-                            const button = (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setInput(question);
-                                  textareaRef.current?.focus();
-                                }}
-                                className="group flex w-full items-center gap-3 rounded-xl border border-[#2F6868]/20 bg-[#2F6868]/5 px-4 py-3 text-left text-sm font-medium text-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#2F6868]/50 hover:bg-[#2F6868]/10 hover:shadow-md"
-                              >
-                                <ArrowUp
-                                  size={14}
-                                  className="flex-shrink-0 rotate-45 text-[#2F6868] transition-transform group-hover:rotate-90"
-                                />
-                                <span className="flex-1 truncate">
-                                  {displayText}
-                                </span>
-                              </button>
-                            );
-                            if (!isTruncated) {
-                              return <div key={i}>{button}</div>;
-                            }
-                            return (
-                              <Tooltip
-                                key={i}
-                                delayDuration={200}
-                              >
-                                <TooltipTrigger asChild>{button}</TooltipTrigger>
-                                <TooltipContent
-                                  side="top"
-                                  className="max-w-md whitespace-pre-wrap break-words"
+                      </div>
+                      {exampleQuestions && exampleQuestions.length > 0 && (
+                        <div className="flex w-full max-w-xl flex-col gap-3 px-6 pb-2 pt-8">
+                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#2F6868]">
+                            <Sparkles size={14} />
+                            <span>Try asking</span>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            {exampleQuestions.map((question, i) => {
+                              const isTruncated =
+                                question.length > EXAMPLE_QUESTION_MAX_LENGTH;
+                              const displayText = isTruncated
+                                ? `${question
+                                    .slice(0, EXAMPLE_QUESTION_MAX_LENGTH)
+                                    .trimEnd()}…`
+                                : question;
+                              const button = (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setInput(question);
+                                    textareaRef.current?.focus();
+                                  }}
+                                  className="group flex w-full items-center gap-3 rounded-xl border border-[#2F6868]/20 bg-[#2F6868]/5 px-4 py-3 text-left text-sm font-medium text-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#2F6868]/50 hover:bg-[#2F6868]/10 hover:shadow-md"
                                 >
-                                  {question}
-                                </TooltipContent>
-                              </Tooltip>
-                            );
-                          })}
+                                  <ArrowUp
+                                    size={14}
+                                    className="flex-shrink-0 rotate-45 text-[#2F6868] transition-transform group-hover:rotate-90"
+                                  />
+                                  <span className="flex-1 truncate">
+                                    {displayText}
+                                  </span>
+                                </button>
+                              );
+                              if (!isTruncated) {
+                                return <div key={i}>{button}</div>;
+                              }
+                              return (
+                                <Tooltip
+                                  key={i}
+                                  delayDuration={200}
+                                >
+                                  <TooltipTrigger asChild>
+                                    {button}
+                                  </TooltipTrigger>
+                                  <TooltipContent
+                                    side="top"
+                                    className="max-w-md whitespace-pre-wrap break-words"
+                                  >
+                                    {question}
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </div>
+                  )}
                 {(() => {
                   // For each message compute the tool calls that ran earlier in
                   // the *same turn* (since the last human message). Text-only
@@ -1477,50 +1663,94 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                   Drop files here to attach
                 </div>
               )}
-              {hasAttachments && (
+              {(hasAttachments || hasRejectedFiles) && (
                 <div className="flex flex-wrap gap-2 border-b border-border px-[18px] py-2">
-                  {attachments.map((attachment) => (
-                    <div
-                      key={attachment.id}
-                      className="group relative flex items-center gap-1.5 rounded-lg border border-border bg-sidebar px-2 py-1.5 text-xs"
-                    >
-                      {loadingAttachmentIds.has(attachment.id) ? (
-                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-muted/40">
-                          <LoaderCircle
-                            size={14}
-                            className="animate-spin text-muted-foreground"
+                  {attachments.map((attachment) => {
+                    const isReading = attachment.id in uploadProgress;
+                    const percent = uploadProgress[attachment.id] ?? 0;
+
+                    return (
+                      <div
+                        key={attachment.id}
+                        className="group relative flex items-center gap-1.5 overflow-hidden rounded-lg border border-border bg-sidebar px-2 py-1.5 text-xs"
+                      >
+                        {isReading ? (
+                          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-muted/40">
+                            <LoaderCircle
+                              size={14}
+                              className="animate-spin text-muted-foreground"
+                            />
+                          </div>
+                        ) : attachment.preview ? (
+                          <img
+                            src={attachment.preview}
+                            alt={attachment.name}
+                            className="h-8 w-8 flex-shrink-0 rounded object-cover"
                           />
+                        ) : isImageFile(attachment.type, attachment.name) ? (
+                          <ImageIcon
+                            size={14}
+                            className="flex-shrink-0 text-muted-foreground"
+                          />
+                        ) : (
+                          <FileIconLucide
+                            size={14}
+                            className="flex-shrink-0 text-muted-foreground"
+                          />
+                        )}
+                        <div className="flex min-w-0 flex-col">
+                          <span className="max-w-[120px] truncate font-medium">
+                            {attachment.name}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {isReading
+                              ? `${percent}% · ${formatFileSize(
+                                  attachment.size
+                                )}`
+                              : formatFileSize(attachment.size)}
+                          </span>
                         </div>
-                      ) : attachment.preview ? (
-                        <img
-                          src={attachment.preview}
-                          alt={attachment.name}
-                          className="h-8 w-8 flex-shrink-0 rounded object-cover"
-                        />
-                      ) : isImageFile(attachment.type, attachment.name) ? (
-                        <ImageIcon
-                          size={14}
-                          className="flex-shrink-0 text-muted-foreground"
-                        />
-                      ) : (
-                        <FileIconLucide
-                          size={14}
-                          className="flex-shrink-0 text-muted-foreground"
-                        />
-                      )}
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(attachment.id)}
+                          className="ml-1 flex-shrink-0 rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                          aria-label={`Remove ${attachment.name}`}
+                        >
+                          <X size={12} />
+                        </button>
+                        {isReading && (
+                          <div className="absolute inset-x-0 bottom-0 h-0.5 bg-muted">
+                            <div
+                              className="h-full bg-primary transition-[width]"
+                              style={{ width: `${percent}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {rejectedFiles.map((file) => (
+                    <div
+                      key={file.id}
+                      className="group relative flex items-center gap-1.5 rounded-lg border border-destructive/40 bg-destructive/10 px-2 py-1.5 text-xs text-destructive"
+                    >
+                      <AlertTriangle
+                        size={14}
+                        className="flex-shrink-0"
+                      />
                       <div className="flex min-w-0 flex-col">
-                        <span className="max-w-[120px] truncate font-medium">
-                          {attachment.name}
+                        <span className="max-w-[160px] truncate font-medium">
+                          {file.name}
                         </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {formatFileSize(attachment.size)}
+                        <span className="max-w-[200px] truncate text-[10px] text-destructive/80">
+                          {file.reason}
                         </span>
                       </div>
                       <button
                         type="button"
-                        onClick={() => removeAttachment(attachment.id)}
-                        className="ml-1 flex-shrink-0 rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                        aria-label={`Remove ${attachment.name}`}
+                        onClick={() => removeRejectedFile(file.id)}
+                        className="ml-1 flex-shrink-0 rounded-full p-0.5 text-destructive/70 transition-colors hover:bg-destructive/10 hover:text-destructive"
+                        aria-label={`Dismiss ${file.name}`}
                       >
                         <X size={12} />
                       </button>
@@ -1528,12 +1758,33 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                   ))}
                 </div>
               )}
-              {isLoading && (
-                <div className="flex items-center gap-2 px-[18px] pt-2 text-xs font-medium text-primary">
+              {isUploadingAttachments ? (
+                <div
+                  role="status"
+                  className="flex items-center gap-2 px-[18px] pt-2 text-xs font-medium text-primary"
+                >
                   <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
-                  <span>Agent is responding...</span>
+                  <span>
+                    Reading {readingFileCount} of {attachments.length}{" "}
+                    {attachments.length === 1 ? "file" : "files"} —{" "}
+                    {readingPercent}%
+                  </span>
                 </div>
-              )}
+              ) : isSubmittingAttachments ? (
+                <div
+                  role="status"
+                  className="flex items-center gap-2 px-[18px] pt-2 text-xs font-medium text-primary"
+                >
+                  <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
+                  <span>Uploading attachments…</span>
+                </div>
+              ) : isLoading ? (
+                <RunStatusBar
+                  runStartedAtRef={runStartedAtRef}
+                  lastEventAtRef={lastEventAtRef}
+                  activity={currentActivity}
+                />
+              ) : null}
               <div
                 className="mx-[18px] mt-1 h-2 cursor-row-resize"
                 onPointerDown={handleInputResizeStart}
@@ -1544,7 +1795,15 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
-                placeholder={isLoading ? "Running..." : "Write your message..."}
+                placeholder={
+                  isUploadingAttachments
+                    ? "Reading files..."
+                    : isSubmittingAttachments
+                    ? "Uploading attachments..."
+                    : isLoading
+                    ? "Running..."
+                    : "Write your message..."
+                }
                 className="font-inherit resize-none border-0 bg-transparent px-[18px] pb-[13px] pt-[10px] text-sm leading-7 text-primary outline-none placeholder:text-tertiary"
                 rows={2}
               />
@@ -1552,15 +1811,26 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                 <div className="flex items-center gap-2">
                   {controls}
                   {isAttachmentsAllowed && (
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                      title="Attach files"
-                      aria-label="Attach files"
-                    >
-                      <Paperclip size={16} />
-                    </button>
+                    <Tooltip delayDuration={200}>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                          aria-label="Attach files"
+                        >
+                          <Paperclip size={16} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent
+                        side="top"
+                        className="max-w-xs"
+                      >
+                        Attach files. Text/CSV/images: up to{" "}
+                        {formatFileSize(MAX_FILE_SIZE_DEFAULT)}. Documents (PDF,
+                        XLSX, DOC): up to {formatFileSize(MAX_FILE_SIZE_LARGE)}.
+                      </TooltipContent>
+                    </Tooltip>
                   )}
                 </div>
 
@@ -1578,6 +1848,22 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                       <>
                         <Square size={14} />
                         <span>Stop</span>
+                      </>
+                    ) : isSubmittingAttachments ? (
+                      <>
+                        <LoaderCircle
+                          size={14}
+                          className="animate-spin"
+                        />
+                        <span>Uploading…</span>
+                      </>
+                    ) : isUploadingAttachments ? (
+                      <>
+                        <LoaderCircle
+                          size={14}
+                          className="animate-spin"
+                        />
+                        <span>Reading…</span>
                       </>
                     ) : (
                       <>

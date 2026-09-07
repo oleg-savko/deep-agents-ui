@@ -59,9 +59,17 @@ export function useChat({
   });
 
   const runStartedAtRef = useRef<number | null>(null);
+  const lastEventAtRef = useRef<number | null>(null);
   const prevIsLoadingRef = useRef(stream.isLoading);
   const [responseDurationByAiMessageId, setResponseDurationByAiMessageId] =
     useState<Record<string, number>>({});
+  const [isSubmittingAttachments, setIsSubmittingAttachments] = useState(false);
+
+  const markRunStarted = useCallback(() => {
+    const now = performance.now();
+    runStartedAtRef.current = now;
+    lastEventAtRef.current = now;
+  }, []);
 
   useEffect(() => {
     setResponseDurationByAiMessageId({});
@@ -73,6 +81,7 @@ export function useChat({
     if (wasLoading && !nowLoading && runStartedAtRef.current != null) {
       const started = runStartedAtRef.current;
       runStartedAtRef.current = null;
+      lastEventAtRef.current = null;
       const msgs = stream.messages ?? [];
       let lastAiId: string | undefined;
       for (let i = msgs.length - 1; i >= 0; i -= 1) {
@@ -90,8 +99,30 @@ export function useChat({
         }));
       }
     }
+    if (!wasLoading && nowLoading && runStartedAtRef.current == null) {
+      const now = performance.now();
+      runStartedAtRef.current = now;
+      lastEventAtRef.current = now;
+    }
     prevIsLoadingRef.current = nowLoading;
   }, [stream.isLoading, stream.messages]);
+
+  const lastMessage = stream.messages?.[stream.messages.length - 1];
+  const lastMessageContent = lastMessage?.content;
+  const messageHeartbeat = `${stream.messages?.length ?? 0}:${
+    lastMessage?.id ?? ""
+  }:${
+    typeof lastMessageContent === "string"
+      ? lastMessageContent.length
+      : Array.isArray(lastMessageContent)
+      ? lastMessageContent.length
+      : 0
+  }`;
+
+  useEffect(() => {
+    if (!stream.isLoading) return;
+    lastEventAtRef.current = performance.now();
+  }, [stream.isLoading, messageHeartbeat]);
 
   const sendMessage = useCallback(
     async (content: string, attachments?: Attachment[]) => {
@@ -133,9 +164,14 @@ export function useChat({
 
         // If thread exists, update state before sending message
         if (threadId) {
-          await client.threads.updateState(threadId, {
-            values: { files: documentFiles },
-          });
+          setIsSubmittingAttachments(true);
+          try {
+            await client.threads.updateState(threadId, {
+              values: { files: documentFiles },
+            });
+          } finally {
+            setIsSubmittingAttachments(false);
+          }
         }
       }
 
@@ -202,7 +238,7 @@ export function useChat({
         submitValues.files = documentFiles;
       }
 
-      runStartedAtRef.current = performance.now();
+      markRunStarted();
       stream.submit(submitValues, {
         optimisticValues: (prev) => ({
           messages: [...(prev.messages ?? []), newMessage],
@@ -216,7 +252,14 @@ export function useChat({
       // Update thread list immediately when sending a message
       onHistoryRevalidate?.();
     },
-    [stream, activeAssistant?.config, onHistoryRevalidate, threadId, client]
+    [
+      stream,
+      activeAssistant?.config,
+      onHistoryRevalidate,
+      threadId,
+      client,
+      markRunStarted,
+    ]
   );
 
   const runSingleStep = useCallback(
@@ -226,7 +269,7 @@ export function useChat({
       isRerunningSubagent?: boolean,
       optimisticMessages?: Message[]
     ) => {
-      runStartedAtRef.current = performance.now();
+      markRunStarted();
       if (checkpoint) {
         stream.submit(undefined, {
           ...(optimisticMessages
@@ -250,7 +293,7 @@ export function useChat({
         );
       }
     },
-    [stream, activeAssistant?.config]
+    [stream, activeAssistant?.config, markRunStarted]
   );
 
   const setFiles = useCallback(
@@ -265,7 +308,7 @@ export function useChat({
 
   const continueStream = useCallback(
     (hasTaskToolCall?: boolean) => {
-      runStartedAtRef.current = performance.now();
+      markRunStarted();
       stream.submit(undefined, {
         streamSubgraphs: true,
         config: {
@@ -279,17 +322,20 @@ export function useChat({
       // Update thread list when continuing stream
       onHistoryRevalidate?.();
     },
-    [stream, activeAssistant?.config, onHistoryRevalidate]
+    [stream, activeAssistant?.config, onHistoryRevalidate, markRunStarted]
   );
 
   const sendHumanResponse = useCallback(
     (response: HumanResponse[]) => {
-      runStartedAtRef.current = performance.now();
-      stream.submit(null, { command: { resume: response }, streamSubgraphs: true });
+      markRunStarted();
+      stream.submit(null, {
+        command: { resume: response },
+        streamSubgraphs: true,
+      });
       // Update thread list when resuming from interrupt
       onHistoryRevalidate?.();
     },
-    [stream, onHistoryRevalidate]
+    [stream, onHistoryRevalidate, markRunStarted]
   );
 
   const markCurrentThreadAsResolved = useCallback(() => {
@@ -303,6 +349,7 @@ export function useChat({
 
   const stopStream = useCallback(() => {
     runStartedAtRef.current = null;
+    lastEventAtRef.current = null;
     stream.stop();
   }, [stream]);
 
@@ -316,6 +363,7 @@ export function useChat({
     messages: stream.messages,
     responseDurationByAiMessageId,
     isLoading: stream.isLoading,
+    isSubmittingAttachments,
     isThreadLoading: stream.isThreadLoading,
     interrupt: stream.interrupt,
     getMessagesMetadata: stream.getMessagesMetadata,
@@ -325,5 +373,7 @@ export function useChat({
     stopStream,
     sendHumanResponse,
     markCurrentThreadAsResolved,
+    runStartedAtRef,
+    lastEventAtRef,
   };
 }
