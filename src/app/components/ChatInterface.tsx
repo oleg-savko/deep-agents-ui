@@ -212,19 +212,24 @@ async function describeStreamError(
   return { connectivity: CONNECTIVITY_RE.test(message), message };
 }
 
+const FAILED_RUN_TITLE = "(!) Run failed — Deep Agents";
+
 /** Toast an agent error: VPN hint for connectivity drops, else `prefix: detail`. */
-function notifyAgentError(err: unknown, prefix: string): void {
-  void describeStreamError(err).then(({ connectivity, message }) => {
-    toast.error(
-      connectivity
-        ? "Lost connection to the agent. Check that your VPN is connected and you're on the corporate network, then try again."
-        : `${prefix}: ${message || "unknown error"}`,
-      {
-        id: connectivity ? "agent-offline" : "agent-run-error",
-        duration: 8000,
-      }
-    );
+async function notifyAgentError(
+  err: unknown,
+  prefix: string
+): Promise<{ connectivity: boolean; message: string }> {
+  const { connectivity, message } = await describeStreamError(err);
+  const text = connectivity
+    ? "Lost connection to the agent. Check that your VPN is connected and you're on the corporate network, then try again."
+    : `${prefix}: ${message || "unknown error"}`;
+
+  toast.error(text, {
+    id: connectivity ? "agent-offline" : "agent-run-error",
+    duration: connectivity ? 8000 : Infinity,
   });
+
+  return { connectivity, message: text };
 }
 
 function formatFileSize(bytes: number): string {
@@ -336,6 +341,9 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     );
 
     const [input, _setInput] = useState("");
+    const [runError, setRunError] = useState<{ message: string } | null>(null);
+    const lastSubmittedTextRef = useRef("");
+    const runErrorGenRef = useRef(0);
     const { scrollRef, contentRef } = useStickToBottom();
 
     const inputCallbackRef = useRef(onInput);
@@ -348,6 +356,22 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       },
       [inputCallbackRef]
     );
+
+    const restoreSubmittedText = useCallback(() => {
+      const fallback = lastSubmittedTextRef.current;
+      if (!fallback) return;
+      _setInput((cur) => {
+        if (cur) return cur;
+        inputCallbackRef.current?.(fallback);
+        return fallback;
+      });
+    }, []);
+
+    const clearRunError = useCallback(() => {
+      runErrorGenRef.current += 1;
+      setRunError(null);
+      toast.dismiss("agent-run-error");
+    }, []);
 
     const processFiles = useCallback(
       async (fileList: FileList | File[]) => {
@@ -595,7 +619,6 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       responseDurationByAiMessageId,
       isSubmittingAttachments,
       runStartedAtRef,
-      lastEventAtRef,
     } = useChatContext();
 
     // Surface a run failure the moment the stream errors — a connectivity drop
@@ -609,8 +632,31 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
         return;
       }
       prevStreamErrorRef.current = err;
-      notifyAgentError(err, "The agent returned an error");
-    }, [stream.error]);
+      const gen = runErrorGenRef.current;
+      void notifyAgentError(err, "The agent returned an error").then(
+        ({ message }) => {
+          if (!isMountedRef.current || gen !== runErrorGenRef.current) return;
+          setRunError({ message });
+          restoreSubmittedText();
+        }
+      );
+    }, [stream.error, restoreSubmittedText]);
+
+    useEffect(() => {
+      if (!runError || document.visibilityState !== "hidden") return;
+      const previous = document.title;
+      document.title = FAILED_RUN_TITLE;
+      const onVisible = () => {
+        if (document.visibilityState === "visible") {
+          document.title = previous;
+        }
+      };
+      document.addEventListener("visibilitychange", onVisible);
+      return () => {
+        document.removeEventListener("visibilitychange", onVisible);
+        document.title = previous;
+      };
+    }, [runError]);
 
     const subAgentRunsCacheRef = useRef<Record<string, SubAgentRun>>({});
 
@@ -620,6 +666,11 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       setAttachments([]);
       setUploadProgress({});
       setRejectedFiles([]);
+      lastSubmittedTextRef.current = "";
+      prevStreamErrorRef.current = undefined;
+      runErrorGenRef.current += 1;
+      setRunError(null);
+      toast.dismiss("agent-run-error");
     }, [threadId, agentId]);
 
     // Bridge for child components (e.g. ChartAppRenderer) to save a file into
@@ -717,7 +768,15 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
         }
         try {
           void sendMessage(detail.text).catch((err) => {
-            notifyAgentError(err, "Couldn't send your message");
+            const gen = runErrorGenRef.current;
+            void notifyAgentError(err, "Couldn't send your message").then(
+              ({ message }) => {
+                if (!isMountedRef.current || gen !== runErrorGenRef.current) {
+                  return;
+                }
+                setRunError({ message });
+              }
+            );
             detail.reject?.(err);
           });
           detail.resolve?.();
@@ -739,6 +798,8 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
         const messageText = input.trim();
         if ((!messageText && !hasAttachments) || isLoading) return;
 
+        clearRunError();
+        lastSubmittedTextRef.current = messageText;
         const submittedIds = new Set(attachments.map((file) => file.id));
         void sendMessage(messageText, hasAttachments ? attachments : undefined)
           .then(() => {
@@ -748,7 +809,18 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
             );
             setRejectedFiles([]);
           })
-          .catch((err) => notifyAgentError(err, "Couldn't send your message"));
+          .catch((err) => {
+            const gen = runErrorGenRef.current;
+            void notifyAgentError(err, "Couldn't send your message").then(
+              ({ message }) => {
+                if (!isMountedRef.current || gen !== runErrorGenRef.current) {
+                  return;
+                }
+                setRunError({ message });
+                restoreSubmittedText();
+              }
+            );
+          });
 
         setInput("");
       },
@@ -760,6 +832,8 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
         submitDisabled,
         hasAttachments,
         attachments,
+        clearRunError,
+        restoreSubmittedText,
       ]
     );
 
@@ -775,9 +849,10 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     );
 
     const handleContinue = useCallback(() => {
+      clearRunError();
       const preparingToCallTaskTool = isPreparingToCallTaskTool(messages);
       continueStream(preparingToCallTaskTool);
-    }, [continueStream, messages]);
+    }, [clearRunError, continueStream, messages]);
 
     const handleRestartFromAIMessage = useCallback(
       (message: Message) => {
@@ -1413,6 +1488,20 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                     />
                   ));
                 })()}
+                {runError && (
+                  <div
+                    role="alert"
+                    className="mt-4 flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+                  >
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">The run failed</p>
+                      <p className="mt-0.5 text-destructive/90">
+                        {runError.message}
+                      </p>
+                    </div>
+                  </div>
+                )}
                 {interrupt && debugMode && (
                   <div className="mt-4">
                     <Button
@@ -1781,7 +1870,6 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
               ) : isLoading ? (
                 <RunStatusBar
                   runStartedAtRef={runStartedAtRef}
-                  lastEventAtRef={lastEventAtRef}
                   activity={currentActivity}
                 />
               ) : null}

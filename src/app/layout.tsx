@@ -41,7 +41,12 @@ export default function RootLayout({
         <NuqsAdapter>
           <AuthHeaderProvider>{children}</AuthHeaderProvider>
         </NuqsAdapter>
-        <Toaster />
+        <Toaster
+          position="top-center"
+          richColors
+          closeButton
+          theme="system"
+        />
       </body>
     </html>
   );

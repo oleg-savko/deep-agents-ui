@@ -59,16 +59,13 @@ export function useChat({
   });
 
   const runStartedAtRef = useRef<number | null>(null);
-  const lastEventAtRef = useRef<number | null>(null);
   const prevIsLoadingRef = useRef(stream.isLoading);
   const [responseDurationByAiMessageId, setResponseDurationByAiMessageId] =
     useState<Record<string, number>>({});
   const [isSubmittingAttachments, setIsSubmittingAttachments] = useState(false);
 
   const markRunStarted = useCallback(() => {
-    const now = performance.now();
-    runStartedAtRef.current = now;
-    lastEventAtRef.current = now;
+    runStartedAtRef.current = performance.now();
   }, []);
 
   useEffect(() => {
@@ -81,7 +78,6 @@ export function useChat({
     if (wasLoading && !nowLoading && runStartedAtRef.current != null) {
       const started = runStartedAtRef.current;
       runStartedAtRef.current = null;
-      lastEventAtRef.current = null;
       const msgs = stream.messages ?? [];
       let lastAiId: string | undefined;
       for (let i = msgs.length - 1; i >= 0; i -= 1) {
@@ -100,29 +96,10 @@ export function useChat({
       }
     }
     if (!wasLoading && nowLoading && runStartedAtRef.current == null) {
-      const now = performance.now();
-      runStartedAtRef.current = now;
-      lastEventAtRef.current = now;
+      runStartedAtRef.current = performance.now();
     }
     prevIsLoadingRef.current = nowLoading;
   }, [stream.isLoading, stream.messages]);
-
-  const lastMessage = stream.messages?.[stream.messages.length - 1];
-  const lastMessageContent = lastMessage?.content;
-  const messageHeartbeat = `${stream.messages?.length ?? 0}:${
-    lastMessage?.id ?? ""
-  }:${
-    typeof lastMessageContent === "string"
-      ? lastMessageContent.length
-      : Array.isArray(lastMessageContent)
-      ? lastMessageContent.length
-      : 0
-  }`;
-
-  useEffect(() => {
-    if (!stream.isLoading) return;
-    lastEventAtRef.current = performance.now();
-  }, [stream.isLoading, messageHeartbeat]);
 
   const sendMessage = useCallback(
     async (content: string, attachments?: Attachment[]) => {
@@ -349,7 +326,6 @@ export function useChat({
 
   const stopStream = useCallback(() => {
     runStartedAtRef.current = null;
-    lastEventAtRef.current = null;
     stream.stop();
   }, [stream]);
 
@@ -374,6 +350,5 @@ export function useChat({
     sendHumanResponse,
     markCurrentThreadAsResolved,
     runStartedAtRef,
-    lastEventAtRef,
   };
 }
