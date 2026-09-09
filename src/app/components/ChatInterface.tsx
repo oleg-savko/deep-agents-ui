@@ -964,7 +964,9 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
             args?: unknown;
             input?: unknown;
           },
-          order?: number
+          order: number,
+          indexInMessage: number,
+          messageId?: string
         ): ToolCall => {
           const name = raw.function?.name || raw.name || raw.type || "unknown";
           const rawArgs =
@@ -982,7 +984,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           }
 
           return {
-            id: raw.id || `tool-${Math.random()}`,
+            id: raw.id || `${messageId ?? order}:${indexInMessage}`,
             name,
             args,
             status: interrupt ? "interrupted" : "pending",
@@ -1030,8 +1032,9 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           if (message.type === "ai") {
             const inferredTaskId = inferActiveTaskIdForMessage(message);
             const toolCallsInMessage = extractToolCallsFromAiMessage(message);
-            const toolCallsWithStatus = toolCallsInMessage.map((tc) =>
-              toToolCall(tc, messageIndex)
+            const toolCallsWithStatus = toolCallsInMessage.map(
+              (tc, indexInMessage) =>
+                toToolCall(tc, messageIndex, indexInMessage, message.id)
             );
             // AI messages produced while a subagent (`task`) run is active should only
             // appear in the subagent timeline, not the main chat transcript.
@@ -1249,21 +1252,40 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
         const pending = processedMessages[i].toolCalls.find(
           (tc) => tc.status === "pending"
         );
-        if (pending) {
-          const subagentType = pending.args?.subagent_type;
+        if (!pending) continue;
 
-          return pending.name === "task"
-            ? `Subagent: ${
-                typeof subagentType === "string" ? subagentType : "task"
-              }`
-            : `Tool: ${pending.name}`;
+        if (pending.name === "task") {
+          const label = `Subagent: ${
+            typeof pending.args?.subagent_type === "string"
+              ? pending.args.subagent_type
+              : "task"
+          }`;
+          const nested = subAgentRunsByTaskId[pending.id]?.toolCalls;
+          const nestedPending = nested
+            ?.filter((tc) => tc.status === "pending")
+            .at(-1);
+          return nestedPending ? `${label} · ${nestedPending.name}` : label;
         }
+
+        return `Tool: ${pending.name}`;
       }
 
-      return (
-        todos.find((t) => t.status === "in_progress")?.content ?? "Thinking…"
-      );
-    }, [isLoading, processedMessages, todos]);
+      return null;
+    }, [isLoading, processedMessages, subAgentRunsByTaskId]);
+
+    const [displayedActivity, setDisplayedActivity] = useState<string | null>(
+      null
+    );
+
+    useEffect(() => {
+      if (!isLoading) {
+        setDisplayedActivity(null);
+        return;
+      }
+      // Gaps between tool calls are the model thinking, not a change of activity:
+      // keeping the last known label is what stops the line from flipping.
+      if (currentActivity) setDisplayedActivity(currentActivity);
+    }, [isLoading, currentActivity]);
 
     const toggle = !hideInternalToggle && (
       <div className="flex w-full justify-center">
@@ -1894,7 +1916,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
               ) : isLoading ? (
                 <RunStatusBar
                   runStartedAtRef={runStartedAtRef}
-                  activity={currentActivity}
+                  activity={displayedActivity ?? "Thinking…"}
                 />
               ) : null}
               <div
