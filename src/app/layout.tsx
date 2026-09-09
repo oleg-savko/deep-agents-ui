@@ -6,6 +6,10 @@ import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
 
+// Next.js layouts export `metadata` next to the page component.
+// eslint-disable-next-line react-refresh/only-export-components
+export const metadata = { title: "Deep Agents" };
+
 const themeInitScript = `
 (function () {
   try {

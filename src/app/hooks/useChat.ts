@@ -28,6 +28,21 @@ export type StateType = {
   ui?: any;
 };
 
+/** A live stream/history error from `useStream.onError`, not a stale checkpoint task. */
+export type StreamFailure = {
+  err: unknown;
+  /** true if a run was already created on the server (has run_id) */
+  live: boolean;
+  at: number;
+};
+
+/**
+ * How long after a user-initiated Stop a server-side error is treated as the
+ * expected cancellation. Bounded on purpose: an open-ended mute would also
+ * swallow unrelated failures (e.g. loading a deleted thread) later on.
+ */
+const STOP_SILENCE_MS = 3000;
+
 export function useChat({
   activeAssistant,
   onHistoryRevalidate,
@@ -40,6 +55,12 @@ export function useChat({
   const [threadId, setThreadId] = useQueryState("threadId");
   const client = useClient();
   const { authorization } = useAuthHeader();
+  const [streamFailure, setStreamFailure] = useState<StreamFailure | null>(
+    null
+  );
+  const stoppedAtRef = useRef(0);
+  const onHistoryRevalidateRef = useRef(onHistoryRevalidate);
+  onHistoryRevalidateRef.current = onHistoryRevalidate;
 
   const stream = useStream<StateType>({
     assistantId: activeAssistant?.assistant_id || "",
@@ -53,7 +74,11 @@ export function useChat({
     },
     // Revalidate thread list when stream finishes, errors, or creates new thread
     onFinish: onHistoryRevalidate,
-    onError: onHistoryRevalidate,
+    onError: (err, run) => {
+      onHistoryRevalidateRef.current?.();
+      if (Date.now() - stoppedAtRef.current < STOP_SILENCE_MS) return;
+      setStreamFailure({ err, live: run != null, at: Date.now() });
+    },
     onCreated: onHistoryRevalidate,
     experimental_thread: thread,
   });
@@ -65,11 +90,27 @@ export function useChat({
   const [isSubmittingAttachments, setIsSubmittingAttachments] = useState(false);
 
   const markRunStarted = useCallback(() => {
+    stoppedAtRef.current = 0;
+    setStreamFailure(null);
     runStartedAtRef.current = performance.now();
   }, []);
 
+  const reportFailure = useCallback((err: unknown, live = false) => {
+    setStreamFailure({ err, live, at: Date.now() });
+  }, []);
+
+  const clearFailure = useCallback(() => {
+    setStreamFailure(null);
+  }, []);
+
+  const resetThread = useCallback(() => {
+    setThreadId(null);
+  }, [setThreadId]);
+
   useEffect(() => {
     setResponseDurationByAiMessageId({});
+    setStreamFailure(null);
+    stoppedAtRef.current = 0;
   }, [threadId]);
 
   useEffect(() => {
@@ -325,6 +366,7 @@ export function useChat({
   }, [stream, onHistoryRevalidate]);
 
   const stopStream = useCallback(() => {
+    stoppedAtRef.current = Date.now();
     runStartedAtRef.current = null;
     stream.stop();
   }, [stream]);
@@ -350,5 +392,9 @@ export function useChat({
     sendHumanResponse,
     markCurrentThreadAsResolved,
     runStartedAtRef,
+    streamFailure,
+    reportFailure,
+    clearFailure,
+    resetThread,
   };
 }
