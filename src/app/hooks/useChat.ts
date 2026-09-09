@@ -43,6 +43,54 @@ export type StreamFailure = {
  */
 const STOP_SILENCE_MS = 3000;
 
+/**
+ * Declared explicitly instead of relying on the SDK inferring modes from which
+ * getters happen to be read during render: `todos` and `files` come from
+ * `stream.values`, and a refactor that moves that read into a component would
+ * otherwise silently drop the mode from the request.
+ */
+const STREAM_MODE = ["values", "messages-tuple"] as const;
+
+const STATE_POLL_MS = 10_000;
+
+/**
+ * Root-graph updates arrive un-namespaced. Subagent graphs (`streamSubgraphs`)
+ * prefix events with a namespace; their todos/files must not overwrite the
+ * main agent's plan. If the root itself is wrapped (depth 1), the getState
+ * poll still surfaces the committed checkpoint.
+ */
+function isMainAgentNamespace(namespace: string[] | undefined): boolean {
+  return namespace == null || namespace.length === 0;
+}
+
+function todoProgress(todos: TodoItem[]): number {
+  return todos.reduce(
+    (n, t) =>
+      n + (t.status === "completed" ? 2 : t.status === "in_progress" ? 1 : 0),
+    0
+  );
+}
+
+function pickTodos(
+  streamed: TodoItem[] | undefined,
+  polled: TodoItem[] | undefined
+): TodoItem[] {
+  const s = streamed ?? [];
+  const p = polled ?? [];
+  if (!p.length) return s;
+  if (!s.length) return p;
+  return todoProgress(p) > todoProgress(s) ? p : s;
+}
+
+function pickFiles(
+  streamed: Record<string, string> | undefined,
+  polled: Record<string, string> | undefined
+): Record<string, string> {
+  const s = streamed ?? {};
+  const p = polled ?? {};
+  return Object.keys(p).length > Object.keys(s).length ? p : s;
+}
+
 export function useChat({
   activeAssistant,
   onHistoryRevalidate,
@@ -58,6 +106,10 @@ export function useChat({
   const [streamFailure, setStreamFailure] = useState<StreamFailure | null>(
     null
   );
+  const [polledState, setPolledState] = useState<{
+    todos?: TodoItem[];
+    files?: Record<string, string>;
+  } | null>(null);
   const stoppedAtRef = useRef(0);
   const onHistoryRevalidateRef = useRef(onHistoryRevalidate);
   onHistoryRevalidateRef.current = onHistoryRevalidate;
@@ -81,6 +133,19 @@ export function useChat({
     },
     onCreated: onHistoryRevalidate,
     experimental_thread: thread,
+    // `values|namespace` from subgraphs is dropped by the SDK (`event === "values"`).
+    // `updates` go through matchEventType, so root-graph todo/file patches still land.
+    onUpdateEvent: (data, { namespace, mutate }) => {
+      if (!isMainAgentNamespace(namespace)) return;
+      const patch: Partial<StateType> = {};
+      for (const nodeUpdate of Object.values(data ?? {})) {
+        if (!nodeUpdate || typeof nodeUpdate !== "object") continue;
+        const { todos, files } = nodeUpdate as Partial<StateType>;
+        if (Array.isArray(todos)) patch.todos = todos;
+        if (files && typeof files === "object") patch.files = files;
+      }
+      if (Object.keys(patch).length > 0) mutate(patch);
+    },
   });
 
   const runStartedAtRef = useRef<number | null>(null);
@@ -110,6 +175,7 @@ export function useChat({
   useEffect(() => {
     setResponseDurationByAiMessageId({});
     setStreamFailure(null);
+    setPolledState(null);
     stoppedAtRef.current = 0;
   }, [threadId]);
 
@@ -141,6 +207,40 @@ export function useChat({
     }
     prevIsLoadingRef.current = nowLoading;
   }, [stream.isLoading, stream.messages]);
+
+  useEffect(() => {
+    if (!stream.isLoading || !threadId) {
+      if (!stream.isLoading) setPolledState(null);
+      return;
+    }
+
+    let cancelled = false;
+    let seq = 0;
+    const pull = async () => {
+      const my = ++seq;
+      try {
+        const state = await client.threads.getState<StateType>(threadId);
+        if (cancelled || my !== seq) return;
+        const values = state.values ?? {};
+        setPolledState({
+          todos: Array.isArray(values.todos) ? values.todos : undefined,
+          files:
+            values.files && typeof values.files === "object"
+              ? values.files
+              : undefined,
+        });
+      } catch {
+        // Poll is a fallback; keep showing stream.values on failure.
+      }
+    };
+
+    void pull();
+    const id = window.setInterval(pull, STATE_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [stream.isLoading, threadId, client]);
 
   const sendMessage = useCallback(
     async (content: string, attachments?: Attachment[]) => {
@@ -261,6 +361,7 @@ export function useChat({
         optimisticValues: (prev) => ({
           messages: [...(prev.messages ?? []), newMessage],
         }),
+        streamMode: [...STREAM_MODE],
         streamSubgraphs: true,
         config: {
           ...(activeAssistant?.config ?? {}),
@@ -293,6 +394,7 @@ export function useChat({
           ...(optimisticMessages
             ? { optimisticValues: { messages: optimisticMessages } }
             : {}),
+          streamMode: [...STREAM_MODE],
           streamSubgraphs: true,
           config: activeAssistant?.config,
           checkpoint: checkpoint,
@@ -304,6 +406,7 @@ export function useChat({
         stream.submit(
           { messages },
           {
+            streamMode: [...STREAM_MODE],
             streamSubgraphs: true,
             config: activeAssistant?.config,
             interruptBefore: ["tools"],
@@ -328,6 +431,7 @@ export function useChat({
     (hasTaskToolCall?: boolean) => {
       markRunStarted();
       stream.submit(undefined, {
+        streamMode: [...STREAM_MODE],
         streamSubgraphs: true,
         config: {
           ...(activeAssistant?.config || {}),
@@ -348,6 +452,7 @@ export function useChat({
       markRunStarted();
       stream.submit(null, {
         command: { resume: response },
+        streamMode: [...STREAM_MODE],
         streamSubgraphs: true,
       });
       // Update thread list when resuming from interrupt
@@ -359,6 +464,7 @@ export function useChat({
   const markCurrentThreadAsResolved = useCallback(() => {
     stream.submit(null, {
       command: { goto: "__end__", update: null },
+      streamMode: [...STREAM_MODE],
       streamSubgraphs: true,
     });
     // Update thread list when marking thread as resolved
@@ -373,8 +479,8 @@ export function useChat({
 
   return {
     stream,
-    todos: stream.values.todos ?? [],
-    files: stream.values.files ?? {},
+    todos: pickTodos(stream.values.todos, polledState?.todos),
+    files: pickFiles(stream.values.files, polledState?.files),
     email: stream.values.email,
     ui: stream.values.ui,
     setFiles,
