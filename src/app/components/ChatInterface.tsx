@@ -178,58 +178,57 @@ function readFileAsAttachment(
 const CONNECTIVITY_RE =
   /failed to fetch|network\s?error|load failed|fetch failed|err_|abort|timeout/i;
 
-/**
- * Turn a stream error into a user-facing message. The LangGraph SDK rejects
- * non-2xx responses with the raw `Response` object, so read its status + body
- * (incl. 5xx) instead of printing "[object Response]".
- */
-async function describeStreamError(
-  err: unknown
-): Promise<{ connectivity: boolean; message: string }> {
-  if (typeof Response !== "undefined" && err instanceof Response) {
-    const status = `${err.status}${err.statusText ? ` ${err.statusText}` : ""}`;
-    let detail = "";
-    try {
-      const body = err.bodyUsed ? "" : await err.clone().text();
-      detail = body.trim();
-      try {
-        const parsed = JSON.parse(detail);
-        detail = String(
-          parsed.detail ?? parsed.message ?? parsed.error ?? detail
-        );
-      } catch {
-        /* body is not JSON — keep the raw text */
-      }
-    } catch {
-      /* body unreadable */
-    }
-    return {
-      connectivity: false,
-      message: detail ? `${status} — ${detail.slice(0, 300)}` : status,
-    };
-  }
-  const message = err instanceof Error ? err.message : String(err ?? "");
-  return { connectivity: CONNECTIVITY_RE.test(message), message };
-}
+const VPN_HINT =
+  "Lost connection to the agent. Check that your VPN is connected and you're on the corporate network, then try again.";
 
+const DEFAULT_TITLE = "Deep Agents";
 const FAILED_RUN_TITLE = "(!) Run failed — Deep Agents";
 
-/** Toast an agent error: VPN hint for connectivity drops, else `prefix: detail`. */
-async function notifyAgentError(
-  err: unknown,
-  prefix: string
-): Promise<{ connectivity: boolean; message: string }> {
-  const { connectivity, message } = await describeStreamError(err);
-  const text = connectivity
-    ? "Lost connection to the agent. Check that your VPN is connected and you're on the corporate network, then try again."
-    : `${prefix}: ${message || "unknown error"}`;
+type AgentErrorKind = "dead-thread" | "connectivity" | "run-failed";
 
-  toast.error(text, {
-    id: connectivity ? "agent-offline" : "agent-run-error",
-    duration: connectivity ? 8000 : Infinity,
-  });
+/**
+ * Classify a live stream/history error. The LangGraph SDK wraps non-2xx as
+ * `HTTPError` (`status` + `text` + `message: "HTTP ${status}: ${text}"`), not
+ * a raw `Response`.
+ */
+function describeAgentError(err: unknown): {
+  kind: AgentErrorKind;
+  message: string;
+} {
+  const status =
+    typeof (err as { status?: unknown })?.status === "number"
+      ? (err as { status: number }).status
+      : undefined;
+  const raw = err instanceof Error ? err.message : String(err ?? "");
+  const body = (err as { text?: string })?.text ?? raw;
 
-  return { connectivity, message: text };
+  let detail = body.trim();
+  try {
+    const parsed = JSON.parse(detail.replace(/^HTTP \d+:\s*/, ""));
+    detail = String(parsed.message ?? parsed.detail ?? parsed.error ?? detail);
+  } catch {
+    /* not JSON — keep the raw text */
+  }
+  if (detail.length > 300) {
+    detail = `${detail.slice(0, 300)}…`;
+  }
+
+  const notFound =
+    status === 404 || /\bHTTP 404\b/.test(raw) || /not_found/.test(body);
+  // A 404 about a missing assistant or graph says nothing about the thread, and
+  // discarding a working conversation over it would lose the user's context.
+  // Anything else 404-ish still counts as a dead thread so auto-recovery keeps
+  // working even if the server wording changes.
+  if (notFound && !/assistant|graph/i.test(body)) {
+    return { kind: "dead-thread", message: detail };
+  }
+  if (status == null && CONNECTIVITY_RE.test(raw)) {
+    return { kind: "connectivity", message: detail };
+  }
+  return {
+    kind: "run-failed",
+    message: status ? `${status} — ${detail}` : detail,
+  };
 }
 
 function formatFileSize(bytes: number): string {
@@ -296,6 +295,8 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     isAttachmentsAllowed = true,
   }) => {
     const [threadId] = useQueryState("threadId");
+    const threadIdRef = useRef(threadId);
+    threadIdRef.current = threadId;
     const [agentId] = useQueryState("agentId");
     const [metaOpen, setMetaOpen] = useState<"tasks" | "files" | null>(null);
     const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
@@ -341,9 +342,13 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     );
 
     const [input, _setInput] = useState("");
-    const [runError, setRunError] = useState<{ message: string } | null>(null);
+    const [runError, setRunError] = useState<{
+      title: string;
+      message: string;
+    } | null>(null);
     const lastSubmittedTextRef = useRef("");
-    const runErrorGenRef = useRef(0);
+    const autoRecoveredRef = useRef(false);
+    const baseTitleRef = useRef(DEFAULT_TITLE);
     const { scrollRef, contentRef } = useStickToBottom();
 
     const inputCallbackRef = useRef(onInput);
@@ -367,11 +372,36 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       });
     }, []);
 
+    const {
+      stream,
+      messages,
+      todos,
+      files,
+      ui,
+      setFiles,
+      isLoading,
+      isThreadLoading,
+      interrupt,
+      getMessagesMetadata,
+      sendMessage,
+      runSingleStep,
+      continueStream,
+      stopStream,
+      responseDurationByAiMessageId,
+      isSubmittingAttachments,
+      runStartedAtRef,
+      streamFailure,
+      reportFailure,
+      clearFailure,
+      resetThread,
+    } = useChatContext();
+
     const clearRunError = useCallback(() => {
-      runErrorGenRef.current += 1;
       setRunError(null);
+      clearFailure();
       toast.dismiss("agent-run-error");
-    }, []);
+      toast.dismiss("agent-offline");
+    }, [clearFailure]);
 
     const processFiles = useCallback(
       async (fileList: FileList | File[]) => {
@@ -601,60 +631,60 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       [processFiles]
     );
 
-    const {
-      stream,
-      messages,
-      todos,
-      files,
-      ui,
-      setFiles,
-      isLoading,
-      isThreadLoading,
-      interrupt,
-      getMessagesMetadata,
-      sendMessage,
-      runSingleStep,
-      continueStream,
-      stopStream,
-      responseDurationByAiMessageId,
-      isSubmittingAttachments,
-      runStartedAtRef,
-    } = useChatContext();
-
-    // Surface a run failure the moment the stream errors — a connectivity drop
-    // gets the VPN hint (sharing the `agent-offline` toast id with the
-    // page-level probe); an HTTP error (incl. 5xx) shows its status + detail.
-    const prevStreamErrorRef = useRef<unknown>(undefined);
     useEffect(() => {
-      const err = stream.error;
-      if (!err || err === prevStreamErrorRef.current) {
-        prevStreamErrorRef.current = err;
+      if (!streamFailure) return;
+      const { kind, message } = describeAgentError(streamFailure.err);
+
+      if (
+        kind === "dead-thread" &&
+        !streamFailure.live &&
+        threadIdRef.current
+      ) {
+        // Guarded on the id: with no thread selected `resetThread` is a no-op,
+        // so the flag would survive and skip the next real attachment cleanup.
+        autoRecoveredRef.current = true;
+        restoreSubmittedText();
+        resetThread();
+        toast.info(
+          "That conversation no longer exists — started a new thread.",
+          { id: "thread-not-found", duration: 6000 }
+        );
+        clearFailure();
         return;
       }
-      prevStreamErrorRef.current = err;
-      const gen = runErrorGenRef.current;
-      void notifyAgentError(err, "The agent returned an error").then(
-        ({ message }) => {
-          if (!isMountedRef.current || gen !== runErrorGenRef.current) return;
-          setRunError({ message });
-          restoreSubmittedText();
-        }
-      );
-    }, [stream.error, restoreSubmittedText]);
+
+      if (kind === "connectivity") {
+        toast.error(VPN_HINT, { id: "agent-offline", duration: 8000 });
+        setRunError({ title: "Connection lost", message: VPN_HINT });
+      } else {
+        toast.error(`The run failed: ${message}`, {
+          id: "agent-run-error",
+          duration: 10000,
+        });
+        setRunError({ title: "The run failed", message });
+      }
+      restoreSubmittedText();
+    }, [streamFailure, resetThread, clearFailure, restoreSubmittedText]);
 
     useEffect(() => {
-      if (!runError || document.visibilityState !== "hidden") return;
-      const previous = document.title;
-      document.title = FAILED_RUN_TITLE;
-      const onVisible = () => {
-        if (document.visibilityState === "visible") {
-          document.title = previous;
-        }
+      baseTitleRef.current = document.title || DEFAULT_TITLE;
+    }, []);
+
+    useEffect(() => {
+      if (!runError) return;
+
+      const sync = () => {
+        document.title =
+          document.visibilityState === "hidden"
+            ? FAILED_RUN_TITLE
+            : baseTitleRef.current;
       };
-      document.addEventListener("visibilitychange", onVisible);
+
+      sync();
+      document.addEventListener("visibilitychange", sync);
       return () => {
-        document.removeEventListener("visibilitychange", onVisible);
-        document.title = previous;
+        document.removeEventListener("visibilitychange", sync);
+        document.title = baseTitleRef.current;
       };
     }, [runError]);
 
@@ -663,14 +693,17 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     useEffect(() => {
       // Reset cached subagent timelines when switching threads.
       subAgentRunsCacheRef.current = {};
-      setAttachments([]);
-      setUploadProgress({});
-      setRejectedFiles([]);
+      if (autoRecoveredRef.current) {
+        autoRecoveredRef.current = false;
+      } else {
+        setAttachments([]);
+        setUploadProgress({});
+        setRejectedFiles([]);
+      }
       lastSubmittedTextRef.current = "";
-      prevStreamErrorRef.current = undefined;
-      runErrorGenRef.current += 1;
       setRunError(null);
       toast.dismiss("agent-run-error");
+      toast.dismiss("agent-offline");
     }, [threadId, agentId]);
 
     // Bridge for child components (e.g. ChartAppRenderer) to save a file into
@@ -768,15 +801,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
         }
         try {
           void sendMessage(detail.text).catch((err) => {
-            const gen = runErrorGenRef.current;
-            void notifyAgentError(err, "Couldn't send your message").then(
-              ({ message }) => {
-                if (!isMountedRef.current || gen !== runErrorGenRef.current) {
-                  return;
-                }
-                setRunError({ message });
-              }
-            );
+            reportFailure(err);
             detail.reject?.(err);
           });
           detail.resolve?.();
@@ -786,7 +811,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       };
       window.addEventListener("mcp-ui-send-message", onSend);
       return () => window.removeEventListener("mcp-ui-send-message", onSend);
-    }, [sendMessage]);
+    }, [sendMessage, reportFailure]);
 
     const handleSubmit = useCallback(
       (e?: FormEvent) => {
@@ -810,16 +835,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
             setRejectedFiles([]);
           })
           .catch((err) => {
-            const gen = runErrorGenRef.current;
-            void notifyAgentError(err, "Couldn't send your message").then(
-              ({ message }) => {
-                if (!isMountedRef.current || gen !== runErrorGenRef.current) {
-                  return;
-                }
-                setRunError({ message });
-                restoreSubmittedText();
-              }
-            );
+            reportFailure(err);
           });
 
         setInput("");
@@ -833,7 +849,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
         hasAttachments,
         attachments,
         clearRunError,
-        restoreSubmittedText,
+        reportFailure,
       ]
     );
 
@@ -1495,11 +1511,19 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                   >
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium">The run failed</p>
+                      <p className="font-medium">{runError.title}</p>
                       <p className="mt-0.5 text-destructive/90">
                         {runError.message}
                       </p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={clearRunError}
+                      aria-label="Dismiss error"
+                      className="shrink-0 rounded-md p-1 text-destructive/70 hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 )}
                 {interrupt && debugMode && (
