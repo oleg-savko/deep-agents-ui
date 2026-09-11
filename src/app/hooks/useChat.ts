@@ -95,10 +95,14 @@ export function useChat({
   activeAssistant,
   onHistoryRevalidate,
   thread,
+  recursionLimit,
 }: {
   activeAssistant: Assistant | null;
   onHistoryRevalidate?: () => void;
   thread?: UseStreamThread<StateType>;
+  /** Per-assistant graph step ceiling from config.json (`recursionLimit`).
+   * Agents that work rather than chat need far more steps than a conversation does. */
+  recursionLimit?: number;
 }) {
   const [threadId, setThreadId] = useQueryState("threadId");
   const client = useClient();
@@ -365,7 +369,7 @@ export function useChat({
         streamSubgraphs: true,
         config: {
           ...(activeAssistant?.config ?? {}),
-          recursion_limit: 1000,
+          recursion_limit: recursionLimit ?? 1000,
         },
       });
       // Update thread list immediately when sending a message
@@ -435,7 +439,7 @@ export function useChat({
         streamSubgraphs: true,
         config: {
           ...(activeAssistant?.config || {}),
-          recursion_limit: 1000,
+          recursion_limit: recursionLimit ?? 1000,
         },
         ...(hasTaskToolCall
           ? { interruptAfter: ["tools"] }

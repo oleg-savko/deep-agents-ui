@@ -93,6 +93,11 @@ function HomePageContent() {
   const [assistantDefaultModels, setAssistantDefaultModels] = useState<
     Record<string, string>
   >({});
+  // Per-assistant graph step ceiling. An agent that implements a whole task needs far more
+  // steps than a conversation does, and the run dies with GraphRecursionError without it.
+  const [assistantRecursionLimits, setAssistantRecursionLimits] = useState<
+    Record<string, number>
+  >({});
   const [projectAvailableModels, setProjectAvailableModels] = useState<
     Record<string, string[]>
   >({});
@@ -134,6 +139,7 @@ function HomePageContent() {
           const exampleQuestions: Record<string, string[]> = {};
           const models: Record<string, { value: string; label: string }[]> = {};
           const defaultModels: Record<string, string> = {};
+          const recursionLimits: Record<string, number> = {};
           for (const a of data.assistants ?? []) {
             if (a.description) descriptions[a.value] = a.description;
             if (a.label) labels[a.value] = a.label;
@@ -144,12 +150,16 @@ function HomePageContent() {
               models[a.value] = a.models;
             }
             if (a.defaultModel) defaultModels[a.value] = a.defaultModel;
+            if (typeof a.recursionLimit === "number") {
+              recursionLimits[a.value] = a.recursionLimit;
+            }
           }
           setAssistantDescriptions(descriptions);
           setAssistantLabels(labels);
           setAssistantExampleQuestions(exampleQuestions);
           setAssistantModels(models);
           setAssistantDefaultModels(defaultModels);
+          setAssistantRecursionLimits(recursionLimits);
           const projModels: Record<string, string[]> = {};
           for (const p of data.projects ?? []) {
             if (Array.isArray(p.availableModels) && p.availableModels.length > 0) {
@@ -818,6 +828,7 @@ function HomePageContent() {
                 <ChatProvider
                   activeAssistant={assistant}
                   onHistoryRevalidate={() => mutateThreads?.()}
+                  recursionLimit={assistantRecursionLimits[config.assistantId]}
                 >
                   <ChatInterface
                     assistant={assistant}

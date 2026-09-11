@@ -10,6 +10,7 @@ interface ChatProviderProps {
   activeAssistant: Assistant | null;
   onHistoryRevalidate?: () => void;
   thread?: UseStreamThread<StateType>;
+  recursionLimit?: number;
 }
 
 export function ChatProvider({
@@ -17,8 +18,14 @@ export function ChatProvider({
   activeAssistant,
   onHistoryRevalidate,
   thread,
+  recursionLimit,
 }: ChatProviderProps) {
-  const chat = useChat({ activeAssistant, onHistoryRevalidate, thread });
+  const chat = useChat({
+    activeAssistant,
+    onHistoryRevalidate,
+    thread,
+    recursionLimit,
+  });
   return <ChatContext.Provider value={chat}>{children}</ChatContext.Provider>;
 }
 
