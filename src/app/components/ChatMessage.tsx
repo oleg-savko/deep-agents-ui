@@ -59,7 +59,11 @@ function stripInternalMarker(content: string): string {
  * Resolution is positional over `uiToolCalls`: every tool call whose
  * artifact contains an HTML resource block, in tool-call order.
  */
-function renderAppPlaceholders(markdown: string, uiToolCalls: ToolCall[]) {
+function renderAppPlaceholders(
+  markdown: string,
+  uiToolCalls: ToolCall[],
+  autoLoad: boolean
+) {
   const parts: Array<
     | { kind: "md"; value: string }
     | { kind: "app"; index: number; raw: string }
@@ -94,6 +98,7 @@ function renderAppPlaceholders(markdown: string, uiToolCalls: ToolCall[]) {
           <ChartAppRenderer
             key={`app-${toolCall.id}-${i}`}
             toolCall={toolCall}
+            autoLoad={autoLoad}
             className="my-3 w-full overflow-hidden rounded-md border border-border bg-background"
           />
         );
@@ -314,7 +319,11 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                   ) : null
                 ) : hasContent ? (
                   hasAppPlaceholders ? (
-                    renderAppPlaceholders(aiMarkdownForDisplay, uiToolCalls)
+                    renderAppPlaceholders(
+                      aiMarkdownForDisplay,
+                      uiToolCalls,
+                      Boolean(isLastMessage)
+                    )
                   ) : (
                     <MarkdownContent content={aiMarkdownForDisplay} />
                   )

@@ -74,6 +74,15 @@ interface ChartAppRendererProps {
   toolCall: ToolCall;
   className?: string;
   height?: number;
+  /**
+   * Mount the guest iframe immediately. Only the live turn should: every app
+   * resource carries its whole HTML shell in the tool artifact (drawio is
+   * ~1.75 MB), so a thread with a dozen diagrams mounts a dozen megabyte-plus
+   * iframes at once and the renderer process is OOM-killed — Chromium shows
+   * "Aw, Snap!" with error code 5. Older ones render a placeholder and mount
+   * when the reader asks for them.
+   */
+  autoLoad?: boolean;
 }
 
 /**
@@ -84,7 +93,8 @@ interface ChartAppRendererProps {
  * the real container size via `hostContext.containerDimensions`.
  */
 export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
-  ({ toolCall, className, height = 560 }) => {
+  ({ toolCall, className, height = 560, autoLoad = false }) => {
+    const [active, setActive] = useState(autoLoad);
     const [err, setErr] = useState<string | null>(null);
     const [measuredHeight, setMeasuredHeight] = useState<number | null>(null);
     const [containerWidth, setContainerWidth] = useState<number | null>(null);
@@ -334,6 +344,31 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
     );
 
     if (!html || !sandboxUrl) return null;
+
+    // Not mounted yet: a placeholder the size of the app, and no iframe. The
+    // artifact stays in memory either way — what this avoids is a guest
+    // document, its JS context and its bitmaps, per historical app in the
+    // thread.
+    if (!active) {
+      return (
+        <div
+          ref={containerRef}
+          className={className}
+          style={{ height: 96, position: "relative" }}
+        >
+          <button
+            type="button"
+            onClick={() => setActive(true)}
+            className="flex h-full w-full flex-col items-center justify-center gap-1 text-xs text-muted-foreground transition-colors hover:bg-muted/40"
+          >
+            <span className="font-medium text-foreground">
+              {toolCall.name}
+            </span>
+            <span>Нажмите, чтобы открыть</span>
+          </button>
+        </div>
+      );
+    }
 
     return (
       <div
