@@ -9,6 +9,31 @@ import type { ToolCall } from "@/app/types/types";
  * wrapped via `wrap_mcp_apps_tool` preserve the resource block losslessly
  * with `{uri, mimeType, text|blob}`).
  */
+/**
+ * Shells already seen in this tab, by resource uri.
+ *
+ * A tool's UI template is one document, identical for every call, so the server
+ * persists it on the *first* call of a thread and sends `{uri, mimeType}` alone
+ * afterwards — otherwise a thread with a dozen diagrams stores a dozen copies of
+ * the same megabyte. A later call resolves its shell from here.
+ */
+const shellsByUri = new Map<string, string>();
+
+/** The uri of the html resource block, whether or not it carries the shell. */
+function extractShellUri(artifact: unknown): string | null {
+  const blocks =
+    artifact && typeof artifact === "object" ? (artifact as any).content_blocks : undefined;
+  if (!Array.isArray(blocks)) return null;
+  for (const block of blocks as unknown[]) {
+    const b = block as any;
+    if (!((b?.type === "resource" && b.resource) || isUIResource(b))) continue;
+    if (!/html/i.test(String(b.resource?.mimeType ?? ""))) continue;
+    const uri = b.resource?.uri;
+    if (typeof uri === "string" && uri) return uri;
+  }
+  return null;
+}
+
 function extractShellHtml(artifact: unknown): string | null {
   const blocks =
     artifact && typeof artifact === "object" ? (artifact as any).content_blocks : undefined;
@@ -226,10 +251,19 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
       [height]
     );
 
-    const html = useMemo(
-      () => extractShellHtml((toolCall as any).artifact),
-      [toolCall]
-    );
+    // Either this message carries the shell, or an earlier one in the thread did
+    // and this is a reference to it. Remembering it keeps the reference-only
+    // messages renderable however far down the thread they are.
+    const html = useMemo(() => {
+      const artifact = (toolCall as any).artifact;
+      const uri = extractShellUri(artifact);
+      const embedded = extractShellHtml(artifact);
+      if (embedded) {
+        if (uri) shellsByUri.set(uri, embedded);
+        return embedded;
+      }
+      return uri ? shellsByUri.get(uri) ?? null : null;
+    }, [toolCall]);
 
     const rawToolResult = useMemo(() => {
       const artifact = (toolCall as any).artifact;
@@ -343,13 +377,14 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
       []
     );
 
-    if (!html || !sandboxUrl) return null;
+    if (!sandboxUrl) return null;
 
-    // Not mounted yet: a placeholder the size of the app, and no iframe. The
-    // artifact stays in memory either way — what this avoids is a guest
-    // document, its JS context and its bitmaps, per historical app in the
-    // thread.
-    if (!active) {
+    // Collapsed, or the shell is not resolvable: a placeholder rather than a
+    // guest iframe. Mounting every historical app at once is what OOM-kills the
+    // renderer — each carries its own document, JS context and bitmaps — and a
+    // reference whose shell never arrived must still show that something is
+    // here rather than rendering nothing.
+    if (!active || !html) {
       return (
         <div
           ref={containerRef}
@@ -359,12 +394,11 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
           <button
             type="button"
             onClick={() => setActive(true)}
-            className="flex h-full w-full flex-col items-center justify-center gap-1 text-xs text-muted-foreground transition-colors hover:bg-muted/40"
+            disabled={!html}
+            className="flex h-full w-full flex-col items-center justify-center gap-1 text-xs text-muted-foreground transition-colors hover:bg-muted/40 disabled:cursor-default disabled:hover:bg-transparent"
           >
-            <span className="font-medium text-foreground">
-              {toolCall.name}
-            </span>
-            <span>Нажмите, чтобы открыть</span>
+            <span className="font-medium text-foreground">{toolCall.name}</span>
+            <span>{html ? "Нажмите, чтобы открыть" : "Приложение недоступно"}</span>
           </button>
         </div>
       );
