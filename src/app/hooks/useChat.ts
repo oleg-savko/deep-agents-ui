@@ -311,15 +311,16 @@ export function useChat({
         // Add inline attachment blocks (images, text files)
         for (const attachment of inlineAttachments) {
           if (isImageFile(attachment.type, attachment.name)) {
-            // Attach-only: images go to uploads/<name> (above) and are referenced
-            // by path so the agent can attach them via jira_add_attachment_file.
-            // We do NOT send an image_url vision block — the agents' models are
-            // not guaranteed to be vision-capable (Azure returns a hard 400
-            // "unsupported image" on non-vision deployments, breaking the run),
-            // and the goal is to attach the file, not have the model see it.
+            // Images go to uploads/<name> (above) and are referenced by path:
+            // the agent reads them with parse_document_file (server-side parse,
+            // images come back as a picture it can look at) or attaches them with
+            // jira_add_attachment_file. We do NOT send an image_url vision block —
+            // the agents' models are not guaranteed to be vision-capable (Azure
+            // returns a hard 400 "unsupported image" on non-vision deployments,
+            // breaking the run), so the image is read server-side instead.
             contentBlocks.push({
               type: "text",
-              text: `[Uploaded file: uploads/${attachment.name} — use jira_add_attachment_file(issue_key, "uploads/${attachment.name}") to attach it to a Jira issue.]`,
+              text: `[Uploaded file: ${attachment.name} - use parse_document_file("uploads/${attachment.name}") to read it, or jira_add_attachment_file(issue_key, "uploads/${attachment.name}") to attach it to a Jira issue.]`,
             });
           } else {
             const isBinary = !attachment.type.startsWith("text/");

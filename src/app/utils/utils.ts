@@ -10,15 +10,17 @@ const FILE_ATTACHMENT_PREFIX = "--- File: ";
 const UPLOADED_FILE_PREFIX = "[Uploaded file: ";
 
 /**
- * Parse the filename out of a document-upload marker block, e.g.
+ * Parse the filename out of an upload marker block, e.g.
  * `[Uploaded file: report.xlsx - use parse_document_file("uploads/report.xlsx") to extract its text.]`.
+ * Everything from the ` - use <tool>(` hint onwards is instruction for the agent,
+ * not part of the name — cut it so the chip shows the filename alone.
  * Returns null when the text is not such a marker.
  */
 function parseUploadedFileName(text: string): string | null {
   if (!text.startsWith(UPLOADED_FILE_PREFIX)) return null;
-  const rest = text.slice(UPLOADED_FILE_PREFIX.length);
-  const end = rest.indexOf(" - use parse_document_file(");
-  const name = (end === -1 ? rest.replace(/\]$/, "") : rest.slice(0, end)).trim();
+  const rest = text.slice(UPLOADED_FILE_PREFIX.length).replace(/\]$/, "");
+  const end = rest.search(/\s[-\u2013\u2014]\s+use\s/);
+  const name = (end === -1 ? rest : rest.slice(0, end)).trim();
   return name || "document";
 }
 
