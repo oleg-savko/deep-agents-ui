@@ -47,8 +47,8 @@
           "label": "gemma-4-26B-A4B"
         },
         {
-          "value": "litellm:deepseek/deepseek-v4-flash",
-          "label": "deepseek-v4-flash"
+          "value": "litellm:deepseek/deepseek-flash",
+          "label": "deepseek-flash"
         }
       ]
     },
@@ -78,18 +78,36 @@
           "label": "Qwen3.8-27B"
         },
         {
-          "value": "litellm:deepseek/deepseek-v4-flash",
-          "label": "deepseek-v4-flash"
+          "value": "litellm:deepseek/deepseek-flash",
+          "label": "deepseek-flash"
+        }
+      ]
+    },
+    {
+      "value": "ba_agent",
+      "label": "BA Agent",
+      "description": "Работа БА с корпусом требований Story: показывает, где Story сейчас (требования, clarity gate, ранжированные открытые вопросы), задаёт вопросы формами и применяет ответы через Delivery Contract — корпус и его история живут в ветке Story в mmru/ba-workspace. Корпус нет — соберёт.",
+      "exampleQuestions": [
+        "Работаем с MMRU-295203",
+        "Покажи открытые вопросы по MMRU-295203",
+        "По MMRU-295203: Q-001 — да, Step 1 входит в эту Story"
+      ],
+      "defaultModel": "litellm:deepseek/deepseek-flash",
+      "aiGroups": ["/ai-group/admin", "/ai-group/it", "/ai-group/business"],
+      "models": [
+        {
+          "value": "litellm:deepseek/deepseek-flash",
+          "label": "deepseek-flash"
         },
         {
-          "value": "litellm:deepseek/deepseek-v4-pro",
-          "label": "deepseek-v4-pro"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
         }
       ]
     },
     {
       "value": "ba_research",
-      "label": "BA Research Agent",
+      "label": "BA Research Agent (deprecated)",
       "description": "Researches and analyzes Jira stories to create comprehensive BA specifications and requirement documents. Reviews pre-development requirements for completeness, consistency, and scope correctness.",
       "defaultModel": "litellm:openai/Qwen3.8-27B",
       "aiGroups": ["/ai-group/admin"],
@@ -102,7 +120,7 @@
     },
     {
       "value": "ba_task_chat",
-      "label": "BA Task Chat Agent",
+      "label": "BA Task Chat Agent (deprecated)",
       "description": "BA task chat agent for creating and updating Jira tasks and Confluence pages.",
       "exampleQuestions": [],
       "aiGroups": ["/ai-group/admin"],
@@ -153,12 +171,8 @@
           "label": "Qwen3.8-27B"
         },
         {
-          "value": "litellm:deepseek/deepseek-v4-flash",
-          "label": "deepseek-v4-flash"
-        },
-        {
-          "value": "litellm:deepseek/deepseek-v4-pro",
-          "label": "deepseek-v4-pro"
+          "value": "litellm:deepseek/deepseek-flash",
+          "label": "deepseek-flash"
         },
         {
           "value": "litellm:openai/gemma-4-26B-A4B",
@@ -183,12 +197,8 @@
           "label": "Qwen3.8-27B"
         },
         {
-          "value": "litellm:deepseek/deepseek-v4-flash",
-          "label": "deepseek-v4-flash"
-        },
-        {
-          "value": "litellm:deepseek/deepseek-v4-pro",
-          "label": "deepseek-v4-pro"
+          "value": "litellm:deepseek/deepseek-flash",
+          "label": "deepseek-flash"
         },
         {
           "value": "litellm:openai/gemma-4-26B-A4B",
@@ -203,45 +213,33 @@
       "exampleQuestions": [
         "Для Jira <KEY>=MMRU-XXXX: собрать требования через spec-researcher (Jira links + Confluence + attachments).  Далее запустить qa-requirements-researcher. ВАЖНО: текст description для qa-requirements-researcher должен состоять РОВНО из двух частей:  byte-for-byte output spec-researcher (без каких-либо добавлений/удалений/правок), затем на новой строке ровно фраза: Сформируй итоговую QA документацию на русском языке. Запрещено добавлять любые другие слова/заголовки/ограничения/пояснения/разделители (включая “ONLY”, “START/END”, “markdown”, “не запрашивай контекст” и т.п.).  Результат qa-requirements-researcher сохранить byte-for-byte в файл: <Date>_<KEY>_QA_checklist.md."
       ],
-      "defaultModel": "litellm:deepseek/deepseek-v4-pro",
+      "defaultModel": "litellm:deepseek/deepseek-flash",
       "aiGroups": ["/ai-group/admin", "/ai-group/it"],
       "models": [
         {
-          "value": "litellm:openai/gpt-5.6-sol",
-          "label": "gpt-5.6-sol"
+          "value": "litellm:openai/gpt-6-sol",
+          "label": "gpt-6-sol"
         },
         {
           "value": "litellm:openai/gpt-5.6-terra",
           "label": "gpt-5.6-terra"
         },
         {
-          "value": "litellm:openai/gpt-5.6-luna",
-          "label": "gpt-5.6-luna"
-        },
-        {
-          "value": "litellm:openai/gpt-5.5",
-          "label": "gpt-5.5"
-        },
-        {
-          "value": "litellm:openai/gpt-5.4",
-          "label": "gpt-5.4"
+          "value": "litellm:openai/gpt-6-luna",
+          "label": "gpt-6-luna"
         },
         {
           "value": "litellm:openai/Qwen3.8-27B",
           "label": "Qwen3.8-27B"
         },
         {
-          "value": "litellm:deepseek/deepseek-v4-flash",
-          "label": "deepseek-v4-flash"
-        },
-        {
-          "value": "litellm:deepseek/deepseek-v4-pro",
-          "label": "deepseek-v4-pro"
+          "value": "litellm:deepseek/deepseek-flash",
+          "label": "deepseek-flash"
         }
       ],
       "subagentModelOverrideTemplates": {
-        "spec-researcher": "litellm:deepseek/deepseek-v4-pro",
-        "qa-requirements-researcher": "litellm:deepseek/deepseek-v4-pro"
+        "spec-researcher": "litellm:deepseek/deepseek-flash",
+        "qa-requirements-researcher": "litellm:deepseek/deepseek-flash"
       }
     },
     {
@@ -250,7 +248,7 @@
       "description": "Analitics and data engineering assistant base on project specific clickhouse database.",
       "exampleQuestions": [],
       "aiGroups": ["/ai-group/admin", "/ai-group/business", "/ai-group/it"],
-      "defaultModel": "litellm:deepseek/deepseek-v4-flash",
+      "defaultModel": "litellm:deepseek/deepseek-flash",
       "models": [
         {
           "value": "litellm:openai/Qwen3.8-27B",
@@ -261,12 +259,8 @@
           "label": "gemma-4-26B-A4B"
         },
         {
-          "value": "litellm:deepseek/deepseek-v4-flash",
-          "label": "deepseek-v4-flash"
-        },
-        {
-          "value": "litellm:deepseek/deepseek-v4-pro",
-          "label": "deepseek-v4-pro"
+          "value": "litellm:deepseek/deepseek-flash",
+          "label": "deepseek-flash"
         }
       ]
     },
@@ -280,19 +274,15 @@
         "Какой шаг воронки сломался за последние 3 часа и что менялось?"
       ],
       "aiGroups": ["/ai-group/admin", "/ai-group/it"],
-      "defaultModel": "litellm:deepseek/deepseek-v4-pro",
+      "defaultModel": "litellm:deepseek/deepseek-flash",
       "models": [
         {
           "value": "litellm:openai/Qwen3.8-27B",
           "label": "Qwen3.8-27B"
         },
         {
-          "value": "litellm:deepseek/deepseek-v4-flash",
-          "label": "deepseek-v4-flash"
-        },
-        {
-          "value": "litellm:deepseek/deepseek-v4-pro",
-          "label": "deepseek-v4-pro"
+          "value": "litellm:deepseek/deepseek-flash",
+          "label": "deepseek-flash"
         }
       ]
     },
@@ -300,24 +290,89 @@
       "value": "spec_research",
       "label": "Spec Research Agent",
       "description": "Technical Business Analyst for investigating Jira issues, building retrieval evidence bundles, and producing normalized requirements corpora for development teams.",
-      "defaultModel": "litellm:deepseek/deepseek-v4-pro",
+      "defaultModel": "litellm:deepseek/deepseek-flash",
       "aiGroups": ["/ai-group/admin", "/ai-group/it"],
       "models": [
         {
-          "value": "litellm:openai/gpt-5.4",
-          "label": "gpt-5.4"
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-flash",
+          "label": "deepseek-flash"
+        }
+      ]
+    },
+    {
+      "value": "delivery_contract",
+      "label": "Delivery Contract Agent",
+      "description": "Builds a delivery contract for a Jira Task — requirements with stable ids, which sources the corpus actually holds, and the split of work across dev/front/qa/mobile. Give it a draft Story instead and it builds the BA's starting corpus: what the sources already say, and a ranked list of the open questions. Pricing is the AI Task Estimation agent, run against the contract this one persists.",
+      "exampleQuestions": [
+        "Собери контракт по задаче MMRU-286456",
+        "Собери корпус по стори MMRU-300100",
+        "Собери контракт по MMRU-286456 заново, не переиспользуй сохранённый"
+      ],
+      "defaultModel": "litellm:openai/Qwen3.8-27B",
+      "aiGroups": ["/ai-group/admin", "/ai-group/it"],
+      "models": [
+        {
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-flash",
+          "label": "deepseek-flash"
+        },
+        {
+          "value": "litellm:openai/gemma-4-26B-A4B",
+          "label": "gemma-4-26B-A4B"
+        }
+      ]
+    },
+    {
+      "value": "ai_task_implementation",
+      "label": "AI Task Implementation Agent",
+      "recursionLimit": 10000,
+      "description": "Пишет код по утверждённому контракту и списку работ, в песочнице, где репозитории MMRU уже выкачаны. Работает на уровне Task: берёт все implement-подзадачи, которые в scope («[BE]» и «[FT]»/«[IT]» → dev, «[FE]» → front), и делает их за один проход — интерфейс между бэком и фронтом решается один раз и записывается в codebase_map родителя, а не угадывается каждой стороной отдельно. Одна ветка на все репозитории, по коммиту на рабочий элемент, свой артефакт на каждую подзадачу. Если контракта нет — построит, если декомпозиции нет — нарежет. Бэкенд доводит до draft merge request (никогда не мержит и не аппрувит); во фронтенд-репозиторий пока только коммиты и diff — MR закрыт fence-ом. Прогоны хранятся попытками: по умолчанию продолжает последнюю, «с нуля» открывает новую, «попытка N» — работает в конкретной. «Почисти и заново» — отдельная просьба: закрывает MR, открытые агентом, удаляет его ветки и стирает артефакты из ClickHouse, и только после этого строит с нуля; чужие MR и ветки не трогает. Только MMRU.",
+      "exampleQuestions": [
+        "Реализуй MMRU-289348",
+        "Составь план реализации MMRU-289348 — контракт, декомпозиция, размещение каждого пункта по репозиториям и модулям, контракт между сторонами. Код не пиши, ветки не создавай, MR не открывай",
+        "Реализуй MMRU-289348 по утверждённому плану — план не переписывай, реализуй как есть, и открой draft MR по каждому репозиторию",
+        "Реализуй MMRU-289348 back/front/mobile. Без push.",
+        "Реализуй MMRU-289348 и открой draft MR по каждому репозиторию — дай ссылки",
+        "Перечитай промпты и скилы заново, и обнови имплементацию согласно новым промптам и скилам.",
+        "Реализуй только фронт MMRU-289348 — бэк не трогай.",
+        "Реализуй MMRU-289348 с нуля — новая попытка, предыдущую не трогай.",
+        "Продолжи попытку 2 по MMRU-289348 — доделай то, что осталось, и обнови write-up",
+        "Доделай MMRU-289348 — продолжи последнюю попытку, доведи до конца оставшиеся пункты и открой draft MR по каждому репозиторию",
+        "Почисти окружение по MMRU-289348 — закрой MR агента, удали его ветки и артефакты — и реализуй заново с нуля, открыв draft MR по каждому репозиторию"
+      ],
+      "defaultModel": "litellm:deepseek/deepseek-flash",
+      "aiGroups": ["/ai-group/admin", "/ai-group/it"],
+      "models": [
+        {
+          "value": "litellm:openai/gpt-6-sol",
+          "label": "gpt-6-sol"
+        },
+        {
+          "value": "litellm:openai/gpt-5.6-terra",
+          "label": "gpt-5.6-terra"
+        },
+        {
+          "value": "litellm:openai/gpt-6-luna",
+          "label": "gpt-6-luna"
         },
         {
           "value": "litellm:openai/Qwen3.8-27B",
           "label": "Qwen3.8-27B"
         },
         {
-          "value": "litellm:deepseek/deepseek-v4-flash",
-          "label": "deepseek-v4-flash"
+          "value": "litellm:deepseek/deepseek-flash",
+          "label": "deepseek-flash"
         },
         {
-          "value": "litellm:deepseek/deepseek-v4-pro",
-          "label": "deepseek-v4-pro"
+          "value": "litellm:openai/gemma-4-26B-A4B",
+          "label": "gemma-4-26B-A4B"
         }
       ]
     },
@@ -325,7 +380,7 @@
       "value": "sd_chat",
       "label": "SD Chat Agent",
       "description": "Jira Service Management assistant for triaging, classifying, and responding to service desk tickets. Helps structure and route support requests efficiently.",
-      "defaultModel": "litellm:deepseek/deepseek-v4-flash",
+      "defaultModel": "litellm:deepseek/deepseek-flash",
       "aiGroups": ["/ai-group/admin"],
       "models": [
         {
@@ -333,12 +388,8 @@
           "label": "Qwen3.8-27B"
         },
         {
-          "value": "litellm:deepseek/deepseek-v4-flash",
-          "label": "deepseek-v4-flash"
-        },
-        {
-          "value": "litellm:deepseek/deepseek-v4-pro",
-          "label": "deepseek-v4-pro"
+          "value": "litellm:deepseek/deepseek-flash",
+          "label": "deepseek-flash"
         }
       ]
     },
@@ -348,15 +399,11 @@
       "description": "Jira Service Management incident-intake assistant for guided ticket creation.",
       "exampleQuestions": [],
       "aiGroups": ["/ai-group/admin"],
-      "defaultModel": "litellm:deepseek/deepseek-v4-flash",
+      "defaultModel": "litellm:deepseek/deepseek-flash",
       "models": [
         {
-          "value": "litellm:deepseek/deepseek-v4-flash",
-          "label": "deepseek-v4-flash"
-        },
-        {
-          "value": "litellm:deepseek/deepseek-v4-pro",
-          "label": "deepseek-v4-pro"
+          "value": "litellm:deepseek/deepseek-flash",
+          "label": "deepseek-flash"
         }
       ]
     },

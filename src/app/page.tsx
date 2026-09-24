@@ -65,6 +65,11 @@ function HomePageContent() {
   const [assistantId, setAssistantId] = useQueryState("assistantId");
   const [threadId, setThreadId] = useQueryState("threadId");
   const [sidebar, setSidebar] = useQueryState("sidebar");
+  // A link from Story Chat (`?assistantId=ba_agent&storyKey=…&traceSession=…`) opens the BA
+  // agent on one Story in the intake's Langfuse session. Both values ride into the run's
+  // `configurable` as `story_key` / `langfuse_session_id`, where TraceMiddleware reads them.
+  const [storyKey, setStoryKey] = useQueryState("storyKey");
+  const [traceSession, setTraceSession] = useQueryState("traceSession");
   const { authorization, ready: authReady } = useAuthHeader();
   // Tracks the thread we've already reconciled the model for, so opening a
   // thread only triggers one getState fetch (and never fights a manual switch).
@@ -109,7 +114,13 @@ function HomePageContent() {
   useEffect(() => {
     const savedConfig = getConfig();
     if (savedConfig) {
-      setConfig(savedConfig);
+      // A link names the assistant it opens; the saved one is only the default. Clearing
+      // the model lets the reconcile effect below pick that assistant's own default.
+      const linked =
+        assistantId && assistantId !== savedConfig.assistantId
+          ? { ...savedConfig, assistantId, llmModelName: "" }
+          : savedConfig;
+      setConfig(linked);
       if (!assistantId) {
         setAssistantId(savedConfig.assistantId);
       }
@@ -219,6 +230,11 @@ function HomePageContent() {
     const assistantChanged = config?.assistantId !== newConfig.assistantId;
     saveConfig(newConfig);
     setConfig(newConfig);
+    // A link's Story and session belong to the assistant it opened, not to the next one.
+    if (assistantChanged) {
+      setStoryKey(null);
+      setTraceSession(null);
+    }
     if (resetThread) {
       setThreadId(null);
       modelRestoredForThreadRef.current = null;
@@ -515,6 +531,8 @@ function HomePageContent() {
         ...(subagentModelsConfig
           ? { SUBAGENT_MODELS: subagentModelsConfig }
           : {}),
+        ...(storyKey ? { story_key: storyKey } : {}),
+        ...(traceSession ? { langfuse_session_id: traceSession } : {}),
       },
     },
     metadata: {},
@@ -836,6 +854,9 @@ function HomePageContent() {
                     agentDescription={assistantDescriptions[config.assistantId]}
                     exampleQuestions={
                       assistantExampleQuestions[config.assistantId]
+                    }
+                    initialInput={
+                      storyKey ? `Работаем с ${storyKey}` : undefined
                     }
                     controls={<></>}
                     skeleton={

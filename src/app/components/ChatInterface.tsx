@@ -88,6 +88,8 @@ interface ChatInterfaceProps {
   banner?: React.ReactNode;
   skeleton: React.ReactNode;
   isAttachmentsAllowed?: boolean;
+  /** Prefilled into an empty input on a fresh thread — e.g. from a link naming a Story. */
+  initialInput?: string;
 }
 
 function readFileAsAttachment(
@@ -293,6 +295,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     hideFilesState = false,
     skeleton,
     isAttachmentsAllowed = true,
+    initialInput,
   }) => {
     const [threadId] = useQueryState("threadId");
     const threadIdRef = useRef(threadId);
@@ -361,6 +364,15 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       },
       [inputCallbackRef]
     );
+
+    // Once per value: a link's prompt is offered on a fresh thread and never overwrites
+    // what the user has typed.
+    const prefilledRef = useRef<string | null>(null);
+    useEffect(() => {
+      if (!initialInput || threadId || prefilledRef.current === initialInput) return;
+      prefilledRef.current = initialInput;
+      _setInput((cur) => cur || initialInput);
+    }, [initialInput, threadId]);
 
     const restoreSubmittedText = useCallback(() => {
       const fallback = lastSubmittedTextRef.current;

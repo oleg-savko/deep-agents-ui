@@ -37,10 +37,6 @@
           "label": "bedrock-claude-sonnet-4-6"
         },
         {
-          "value": "litellm:openai/gpt-5.4",
-          "label": "gpt-5.4"
-        },
-        {
           "value": "litellm:openai/gpt-5.4-mini",
           "label": "gpt-5.4-mini"
         }
@@ -55,19 +51,19 @@
       "value": "chat",
       "label": "Chat Agent",
       "description": "Fast data analyst for ad-hoc business questions backed by ClickHouse analytics. Supports charts, data visualization, and quick data insights.",
-      "defaultModel": "litellm:deepseek/deepseek-v4-flash",
+      "defaultModel": "litellm:deepseek/deepseek-flash",
       "models": [
         {
           "value": "litellm:openai/gpt-5.4-mini",
           "label": "gpt-5.4-mini"
         },
         {
-          "value": "litellm:openai/gpt-5.6-luna",
-          "label": "gpt-5.6-luna"
+          "value": "litellm:openai/gpt-6-luna",
+          "label": "gpt-6-luna"
         },
         {
-          "value": "litellm:deepseek/deepseek-v4-flash",
-          "label": "deepseek-v4-flash"
+          "value": "litellm:deepseek/deepseek-flash",
+          "label": "deepseek-flash"
         },
         {
           "value": "litellm:deepseek/deepseek-v4-pro",
@@ -86,10 +82,6 @@
           "label": "gpt-5.4-mini"
         },
         {
-          "value": "litellm:openai/gpt-5.4",
-          "label": "gpt-5.4"
-        },
-        {
           "value": "litellm:openai/gpt-5.4-mini",
           "label": "gpt-5.4-mini"
         }
@@ -101,12 +93,8 @@
       "description": "Jira Service Management incident-intake assistant for guided ticket creation.",
       "exampleQuestions": [],
       "aiGroups": ["/ai-group/admin", "/ai-group/sd_incident"],
-      "defaultModel": "litellm:openai/gpt-5.4",
+      "defaultModel": "litellm:openai/gpt-5.4-mini",
       "models": [
-        {
-          "value": "litellm:openai/gpt-5.4",
-          "label": "gpt-5.4"
-        },
         {
           "value": "litellm:openai/gpt-5.4-mini",
           "label": "gpt-5.4-mini"
@@ -146,14 +134,6 @@
         {
           "value": "litellm:openai/bedrock-claude-sonnet-4-6",
           "label": "bedrock-claude-sonnet-4-6"
-        },
-        {
-          "value": "litellm:openai/gpt-5.5",
-          "label": "gpt-5.5"
-        },
-        {
-          "value": "litellm:openai/gpt-5.4",
-          "label": "gpt-5.4"
         }
       ],
       "subagentModelOverrideTemplates": {
@@ -182,28 +162,24 @@
         "Do a history review for task MMMX-1234 and publish the report to Confluence",
         "Invoke sprint-review for DEP_QA team sprint 42 in project MMMX\nPROJECT: MMMX\nSPRINT_NUM: 42\nDISCIPLINE: DEP_QA\nTask: sprint × discipline AI-review roll-up for the team lead and mentor."
       ],
-      "defaultModel": "litellm:gpt-5.6-luna",
+      "defaultModel": "litellm:openai/gpt-6-luna",
       "aiGroups": ["/ai-group/admin"],
       "models": [
         {
-          "value": "litellm:openai/gpt-5.4",
-          "label": "gpt-5.4"
-        },
-        {
-          "value": "litellm:openai/gpt-5.6-sol",
-          "label": "gpt-5.6-sol"
+          "value": "litellm:openai/gpt-6-sol",
+          "label": "gpt-6-sol"
         },
         {
           "value": "litellm:openai/gpt-5.6-terra",
           "label": "gpt-5.6-terra"
         },
         {
-          "value": "litellm:openai/gpt-5.6-luna",
-          "label": "gpt-5.6-luna"
+          "value": "litellm:openai/gpt-6-luna",
+          "label": "gpt-6-luna"
         },
         {
-          "value": "litellm:deepseek/deepseek-v4-flash",
-          "label": "deepseek-v4-flash"
+          "value": "litellm:deepseek/deepseek-flash",
+          "label": "deepseek-flash"
         },
         {
           "value": "litellm:deepseek/deepseek-v4-pro",
@@ -220,28 +196,24 @@
         "Estimate task MMMX-1234\nDISCIPLINE: front",
         "Estimate task MMMX-1234 — both backend and frontend, and post the plan to the ticket"
       ],
-      "defaultModel": "litellm:gpt-5.6-luna",
+      "defaultModel": "litellm:openai/gpt-6-luna",
       "aiGroups": ["/ai-group/admin", "/ai-group/it"],
       "models": [
         {
-          "value": "litellm:openai/gpt-5.4",
-          "label": "gpt-5.4"
-        },
-        {
-          "value": "litellm:openai/gpt-5.6-sol",
-          "label": "gpt-5.6-sol"
+          "value": "litellm:openai/gpt-6-sol",
+          "label": "gpt-6-sol"
         },
         {
           "value": "litellm:openai/gpt-5.6-terra",
           "label": "gpt-5.6-terra"
         },
         {
-          "value": "litellm:openai/gpt-5.6-luna",
-          "label": "gpt-5.6-luna"
+          "value": "litellm:openai/gpt-6-luna",
+          "label": "gpt-6-luna"
         },
         {
-          "value": "litellm:deepseek/deepseek-v4-flash",
-          "label": "deepseek-v4-flash"
+          "value": "litellm:deepseek/deepseek-flash",
+          "label": "deepseek-flash"
         },
         {
           "value": "litellm:deepseek/deepseek-v4-pro",
