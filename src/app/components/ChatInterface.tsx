@@ -91,6 +91,8 @@ interface ChatInterfaceProps {
   isAttachmentsAllowed?: boolean;
   /** Prefilled into an empty input on a fresh thread — e.g. from a link naming a Story. */
   initialInput?: string;
+  /** Thread owner is unknown or belongs to another agent — don't send. */
+  inputLocked?: boolean;
 }
 
 function readFileAsAttachment(
@@ -297,6 +299,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     skeleton,
     isAttachmentsAllowed = true,
     initialInput,
+    inputLocked = false,
   }) => {
     const [threadId] = useQueryState("threadId");
     const threadIdRef = useRef(threadId);
@@ -403,7 +406,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       stopStream,
       responseDurationByAiMessageId,
       isSubmittingAttachments,
-      runStartedAtRef,
+      runStartedAt,
       streamFailure,
       reportFailure,
       clearFailure,
@@ -751,6 +754,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       isLoading ||
       isUploadingAttachments ||
       isSubmittingAttachments ||
+      inputLocked ||
       !assistant;
     const hasAttachments = attachments.length > 0;
     const hasRejectedFiles = rejectedFiles.length > 0;
@@ -1927,8 +1931,9 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                 </div>
               ) : isLoading ? (
                 <RunStatusBar
-                  runStartedAtRef={runStartedAtRef}
+                  runStartedAt={runStartedAt}
                   activity={displayedActivity ?? "Thinking…"}
+                  threadId={threadId}
                 />
               ) : null}
               <div
@@ -1942,7 +1947,9 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
                 placeholder={
-                  isUploadingAttachments
+                  inputLocked
+                    ? "This thread belongs to another agent"
+                    : isUploadingAttachments
                     ? "Reading files..."
                     : isSubmittingAttachments
                     ? "Uploading attachments..."
@@ -1950,6 +1957,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                     ? "Running..."
                     : "Write your message..."
                 }
+                disabled={inputLocked}
                 className="font-inherit resize-none border-0 bg-transparent px-[18px] pb-[13px] pt-[10px] text-sm leading-7 text-primary outline-none placeholder:text-tertiary"
                 rows={2}
               />

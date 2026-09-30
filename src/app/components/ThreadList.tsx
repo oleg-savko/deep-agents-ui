@@ -18,8 +18,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { ThreadItem } from "@/app/hooks/useThreads";
+import type { ThreadItem, ThreadScope } from "@/app/hooks/useThreads";
 import { useThreads } from "@/app/hooks/useThreads";
+
+const SCOPE_KEY = "threads-scope";
 
 type StatusFilter = "all" | "idle" | "busy" | "interrupted" | "error";
 
@@ -111,10 +113,11 @@ function EmptyState() {
 }
 
 interface ThreadListProps {
-  onThreadSelect: (id: string) => void;
+  onThreadSelect: (id: string, assistantId: string | null) => void;
   onMutateReady?: (mutate: () => void) => void;
   onClose?: () => void;
   onInterruptCountChange?: (count: number) => void;
+  assistantLabels?: Record<string, string>;
 }
 
 export function ThreadList({
@@ -122,13 +125,21 @@ export function ThreadList({
   onMutateReady,
   onClose,
   onInterruptCountChange,
+  assistantLabels,
 }: ThreadListProps) {
   const [currentThreadId] = useQueryState("threadId");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [scope, setScope] = useState<ThreadScope>("agent");
+
+  useEffect(() => {
+    const saved = localStorage.getItem(SCOPE_KEY);
+    if (saved === "all" || saved === "agent") setScope(saved);
+  }, []);
 
   const threads = useThreads({
     status: statusFilter === "all" ? undefined : statusFilter,
     limit: 20,
+    scope,
   });
 
   const flattened = useMemo(() => {
@@ -212,6 +223,22 @@ export function ThreadList({
       <div className="grid flex-shrink-0 grid-cols-[1fr_auto] items-center gap-3 border-b border-border p-4">
         <h2 className="text-lg font-semibold tracking-tight">Threads</h2>
         <div className="flex items-center gap-2">
+          <Select
+            value={scope}
+            onValueChange={(v) => {
+              const next = v as ThreadScope;
+              setScope(next);
+              localStorage.setItem(SCOPE_KEY, next);
+            }}
+          >
+            <SelectTrigger className="w-fit">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end">
+              <SelectItem value="agent">Этот агент</SelectItem>
+              <SelectItem value="all">Все агенты</SelectItem>
+            </SelectContent>
+          </Select>
           <Select
             value={statusFilter}
             onValueChange={(v) => setStatusFilter(v as StatusFilter)}
@@ -300,7 +327,9 @@ export function ThreadList({
                       <button
                         key={thread.id}
                         type="button"
-                        onClick={() => onThreadSelect(thread.id)}
+                        onClick={() =>
+                          onThreadSelect(thread.id, thread.assistantId)
+                        }
                         className={cn(
                           "grid w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-3 text-left transition-colors duration-200",
                           "hover:bg-accent",
@@ -313,8 +342,14 @@ export function ThreadList({
                         <div className="min-w-0 flex-1">
                           {/* Title + Timestamp Row */}
                           <div className="mb-1 flex items-center justify-between">
-                            <h3 className="truncate text-sm font-semibold">
-                              {thread.title}
+                            <h3 className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-semibold">
+                              <span className="truncate">{thread.title}</span>
+                              {scope === "all" && thread.assistantId && (
+                                <span className="flex-shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                  {assistantLabels?.[thread.assistantId] ??
+                                    thread.assistantId}
+                                </span>
+                              )}
                             </h3>
                             <span className="ml-2 flex-shrink-0 text-xs text-muted-foreground">
                               {formatTime(thread.updatedAt)}

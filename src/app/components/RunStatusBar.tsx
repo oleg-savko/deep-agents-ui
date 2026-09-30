@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useEffect, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 
 const ACTIVITY_TIMER_THRESHOLD_MS = 30_000;
@@ -13,15 +13,57 @@ function formatElapsed(ms: number): string {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-interface RunStatusBarProps {
-  runStartedAtRef: MutableRefObject<number | null>;
-  activity: string | null;
+const activityKey = (threadId: string) => `activity-since:${threadId}`;
+
+interface StoredActivity {
+  label: string;
+  at: number;
+  runStartedAt: number;
 }
 
-export function RunStatusBar({ runStartedAtRef, activity }: RunStatusBarProps) {
+function readActivity(
+  threadId: string,
+  label: string,
+  runStartedAt: number
+): number | null {
+  try {
+    const raw = sessionStorage.getItem(activityKey(threadId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredActivity;
+    if (
+      parsed.label === label &&
+      parsed.runStartedAt === runStartedAt &&
+      Number.isFinite(parsed.at)
+    ) {
+      return parsed.at;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+function writeActivity(threadId: string, stored: StoredActivity): void {
+  try {
+    sessionStorage.setItem(activityKey(threadId), JSON.stringify(stored));
+  } catch {
+    /* ignore */
+  }
+}
+
+interface RunStatusBarProps {
+  runStartedAt: number | null;
+  activity: string | null;
+  threadId: string | null;
+}
+
+export function RunStatusBar({
+  runStartedAt,
+  activity,
+  threadId,
+}: RunStatusBarProps) {
   const [, setTick] = useState(0);
   const [activitySince, setActivitySince] = useState<number | null>(null);
-  const prevActivityRef = useRef<string | null>(null);
 
   useEffect(() => {
     const id = window.setInterval(() => setTick((n) => n + 1), 1000);
@@ -30,14 +72,26 @@ export function RunStatusBar({ runStartedAtRef, activity }: RunStatusBarProps) {
   }, []);
 
   useEffect(() => {
-    if (activity === prevActivityRef.current) return;
-    prevActivityRef.current = activity;
-    setActivitySince(activity ? performance.now() : null);
-  }, [activity]);
+    if (!activity || runStartedAt == null) {
+      setActivitySince(null);
+      return;
+    }
+    if (!threadId) {
+      setActivitySince(Date.now());
+      return;
+    }
+    const stored = readActivity(threadId, activity, runStartedAt);
+    if (stored != null) {
+      setActivitySince(stored);
+      return;
+    }
+    const at = Date.now();
+    writeActivity(threadId, { label: activity, at, runStartedAt });
+    setActivitySince(at);
+  }, [activity, threadId, runStartedAt]);
 
-  const now = performance.now();
-  const startedAt = runStartedAtRef.current;
-  const elapsed = startedAt != null ? now - startedAt : 0;
+  const now = Date.now();
+  const elapsed = runStartedAt != null ? now - runStartedAt : 0;
   const activityElapsed = activitySince != null ? now - activitySince : 0;
 
   return (
@@ -50,7 +104,7 @@ export function RunStatusBar({ runStartedAtRef, activity }: RunStatusBarProps) {
       <span className="min-w-0">
         <span className="block truncate">
           Agent is working
-          {startedAt != null ? ` — ${formatElapsed(elapsed)}` : ""}
+          {runStartedAt != null ? ` — ${formatElapsed(elapsed)}` : ""}
           {activity ? ` · ${activity}` : ""}
           {activity && activityElapsed >= ACTIVITY_TIMER_THRESHOLD_MS
             ? ` (${formatElapsed(activityElapsed)})`

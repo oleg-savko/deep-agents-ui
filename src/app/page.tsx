@@ -44,6 +44,7 @@ import { AccessNotice, type AccessInfo } from "@/app/components/AccessNotice";
 import { ConnectivityBanner } from "@/app/components/ConnectivityBanner";
 import { useAgentHealth, type AgentHealth } from "@/app/hooks/useAgentHealth";
 import { toast } from "sonner";
+import { resolveThreadOwner } from "@/app/utils/threadOwner";
 import {
   Dialog,
   DialogContent,
@@ -71,6 +72,10 @@ function HomePageContent() {
   > | null>(null);
   const [assistantId, setAssistantId] = useQueryState("assistantId");
   const [threadId, setThreadId] = useQueryState("threadId");
+  const [resolvedOwner, setResolvedOwner] = useState<{
+    threadId: string;
+    owner: string | null;
+  } | null>(null);
   const [sidebar, setSidebar] = useQueryState("sidebar");
   // A link from Story Chat (`?assistantId=ba_agent&storyKey=…&traceSession=…`) opens the BA
   // agent on one Story in the intake's Langfuse session. Both values ride into the run's
@@ -389,10 +394,25 @@ function HomePageContent() {
         // Optional: only when the checkpoint itself names the graph. LangGraph
         // does not always write assistant_id/graph_id into checkpoint metadata;
         // if neither field is present this is a no-op.
-        const rawAssistant =
+        let rawAssistant =
           (typeof meta.assistant_id === "string" && meta.assistant_id) ||
           (typeof meta.graph_id === "string" && meta.graph_id) ||
           null;
+        // Checkpoint metadata often has no assistant. The run that created the
+        // thread does, and so does thread metadata once we've tagged it.
+        if (!rawAssistant) {
+          try {
+            const thread = await client.threads.get(threadId);
+            if (cancelled) return;
+            rawAssistant = await resolveThreadOwner(client, {
+              thread_id: threadId,
+              metadata: thread.metadata,
+            });
+          } catch {
+            rawAssistant = null;
+          }
+          if (cancelled) return;
+        }
         const knownAssistants = configAssistantsRef.current;
         const threadAssistant =
           rawAssistant && knownAssistants.some((a) => a.value === rawAssistant)
@@ -403,8 +423,18 @@ function HomePageContent() {
             threadId,
             assistantId: rawAssistant,
           };
+        } else if (rawAssistant && !threadAssistant) {
+          pendingAssistantMetaRef.current = null;
+          const label =
+            knownAssistants.find((a) => a.value === rawAssistant)?.label ??
+            rawAssistant;
+          toast.error(`Тред принадлежит агенту ${label}, к нему нет доступа`);
+          setResolvedOwner(null);
+          setThreadId(null);
+          return;
         } else {
           pendingAssistantMetaRef.current = null;
+          setResolvedOwner({ threadId, owner: threadAssistant });
         }
         const assistantFromThread =
           !!threadAssistant && threadAssistant !== snapshot.assistantId;
@@ -435,8 +465,10 @@ function HomePageContent() {
         }
       } catch {
         // Best-effort restore: a missing/failed state read leaves the current
-        // model in place. The confirm dialog still guards deliberate switches.
+        // model in place. Unlock the composer rather than pinning it on a
+        // lookup that will not retry by itself.
         modelRestoredForThreadRef.current = null;
+        setResolvedOwner({ threadId, owner: null });
       }
     })();
 
@@ -450,6 +482,7 @@ function HomePageContent() {
     langsmithApiKey,
     config,
     setAssistantId,
+    setThreadId,
   ]);
 
   // The checkpoint read can finish before /api/config returns the assistant
@@ -460,14 +493,25 @@ function HomePageContent() {
     if (!pending || pending.threadId !== threadId || !config) return;
     if (configAssistants.length === 0) return;
     pendingAssistantMetaRef.current = null;
-    if (!configAssistants.some((a) => a.value === pending.assistantId)) return;
+    if (!configAssistants.some((a) => a.value === pending.assistantId)) {
+      toast.error(
+        `Тред принадлежит агенту ${pending.assistantId}, к нему нет доступа`
+      );
+      setResolvedOwner(null);
+      setThreadId(null);
+      return;
+    }
+    setResolvedOwner({
+      threadId: pending.threadId,
+      owner: pending.assistantId,
+    });
     if (pending.assistantId === config.assistantId) return;
     prevAssistantRef.current = pending.assistantId;
     const next = { ...config, assistantId: pending.assistantId };
     saveConfig(next);
     setConfig(next);
     setAssistantId(pending.assistantId);
-  }, [threadId, config, configAssistants, setAssistantId]);
+  }, [threadId, config, configAssistants, setAssistantId, setThreadId]);
 
   // Effective subagent models sent with each run. Never read from persisted
   // config, so stale user-saved models can't leak in.
@@ -616,6 +660,12 @@ function HomePageContent() {
       </>
     );
   }
+
+  const ownerPending = !!threadId && resolvedOwner?.threadId !== threadId;
+  const threadOwner =
+    resolvedOwner?.threadId === threadId ? resolvedOwner.owner : null;
+  const ownerMismatch = !!threadOwner && threadOwner !== config.assistantId;
+  const runsBlocked = ownerPending || ownerMismatch;
 
   const defaultModelName = "litellm:openai/gpt-5-mini";
   const assistant: Assistant = {
@@ -937,7 +987,27 @@ function HomePageContent() {
                     className="relative min-w-[380px]"
                   >
                     <ThreadList
-                      onThreadSelect={async (id) => {
+                      assistantLabels={assistantLabels}
+                      onThreadSelect={async (id, owner) => {
+                        if (
+                          owner &&
+                          !configAssistants.some((a) => a.value === owner)
+                        ) {
+                          toast.error(
+                            `Тред принадлежит агенту ${
+                              assistantLabels[owner] ?? owner
+                            }, к нему нет доступа`
+                          );
+                          return;
+                        }
+                        if (owner && owner !== config.assistantId) {
+                          prevAssistantRef.current = owner;
+                          applyConfig(
+                            { ...config, assistantId: owner, llmModelName: "" },
+                            false
+                          );
+                        }
+                        setResolvedOwner({ threadId: id, owner });
                         await setThreadId(id);
                       }}
                       onMutateReady={(fn) => setMutateThreads(() => fn)}
@@ -958,10 +1028,44 @@ function HomePageContent() {
                   activeAssistant={assistant}
                   onHistoryRevalidate={() => mutateThreads?.()}
                   recursionLimit={assistantRecursionLimits[config.assistantId]}
+                  runsBlocked={runsBlocked}
                 >
                   <ChatInterface
                     assistant={assistant}
                     debugMode={debugMode}
+                    inputLocked={runsBlocked}
+                    banner={
+                      ownerPending ? (
+                        <p className="text-center text-xs text-muted-foreground">
+                          Проверяем агента треда…
+                        </p>
+                      ) : ownerMismatch && threadOwner ? (
+                        <div className="flex items-center justify-center gap-2 text-xs">
+                          <span>
+                            Тред агента{" "}
+                            {assistantLabels[threadOwner] ?? threadOwner}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              prevAssistantRef.current = threadOwner;
+                              applyConfig(
+                                {
+                                  ...config,
+                                  assistantId: threadOwner,
+                                  llmModelName: "",
+                                },
+                                false
+                              );
+                            }}
+                          >
+                            Переключить
+                          </Button>
+                        </div>
+                      ) : undefined
+                    }
                     agentDescription={assistantDescriptions[config.assistantId]}
                     exampleQuestions={
                       assistantExampleQuestions[config.assistantId]
