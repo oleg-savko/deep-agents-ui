@@ -10,7 +10,14 @@ import { ConfigDialog } from "@/app/components/ConfigDialog";
 import { Button } from "@/components/ui/button";
 import { Assistant } from "@langchain/langgraph-sdk";
 import { ClientProvider } from "@/providers/ClientProvider";
-import { Settings, MessagesSquare, SquarePen, Info, Check, ChevronDown } from "lucide-react";
+import {
+  Settings,
+  MessagesSquare,
+  SquarePen,
+  Info,
+  Check,
+  ChevronDown,
+} from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -74,12 +81,19 @@ function HomePageContent() {
   // Tracks the thread we've already reconciled the model for, so opening a
   // thread only triggers one getState fetch (and never fights a manual switch).
   const modelRestoredForThreadRef = useRef<string | null>(null);
+  // Updated inside the model-reconcile effect. The thread-restore path sets it
+  // before changing assistant so that effect does not treat a restore as a user
+  // switch and overwrite the thread's model with the assistant default.
+  const prevAssistantRef = useRef<string | null>(null);
+  const pendingAssistantMetaRef = useRef<{
+    threadId: string;
+    assistantId: string;
+  } | null>(null);
 
   const [mutateThreads, setMutateThreads] = useState<(() => void) | null>(null);
   const [interruptCount, setInterruptCount] = useState(0);
-  const [subagentTemplatesByAssistant, setSubagentTemplatesByAssistant] = useState<
-    Record<string, Record<string, string>>
-  >({});
+  const [subagentTemplatesByAssistant, setSubagentTemplatesByAssistant] =
+    useState<Record<string, Record<string, string>>>({});
   const [assistantDescriptions, setAssistantDescriptions] = useState<
     Record<string, string>
   >({});
@@ -110,6 +124,8 @@ function HomePageContent() {
     { value: string; label: string }[]
   >([]);
   const [accessInfo, setAccessInfo] = useState<AccessInfo | null>(null);
+  const configAssistantsRef = useRef(configAssistants);
+  configAssistantsRef.current = configAssistants;
 
   useEffect(() => {
     const savedConfig = getConfig();
@@ -144,7 +160,9 @@ function HomePageContent() {
         if (!response.ok || cancelled) return;
         const data = await response.json();
         if (!cancelled) {
-          setSubagentTemplatesByAssistant(buildSubagentTemplatesByAssistantId(data));
+          setSubagentTemplatesByAssistant(
+            buildSubagentTemplatesByAssistantId(data)
+          );
           const descriptions: Record<string, string> = {};
           const labels: Record<string, string> = {};
           const exampleQuestions: Record<string, string[]> = {};
@@ -154,7 +172,10 @@ function HomePageContent() {
           for (const a of data.assistants ?? []) {
             if (a.description) descriptions[a.value] = a.description;
             if (a.label) labels[a.value] = a.label;
-            if (Array.isArray(a.exampleQuestions) && a.exampleQuestions.length > 0) {
+            if (
+              Array.isArray(a.exampleQuestions) &&
+              a.exampleQuestions.length > 0
+            ) {
               exampleQuestions[a.value] = a.exampleQuestions;
             }
             if (Array.isArray(a.models) && a.models.length > 0) {
@@ -173,7 +194,10 @@ function HomePageContent() {
           setAssistantRecursionLimits(recursionLimits);
           const projModels: Record<string, string[]> = {};
           for (const p of data.projects ?? []) {
-            if (Array.isArray(p.availableModels) && p.availableModels.length > 0) {
+            if (
+              Array.isArray(p.availableModels) &&
+              p.availableModels.length > 0
+            ) {
               projModels[p.value] = p.availableModels;
             }
           }
@@ -183,8 +207,8 @@ function HomePageContent() {
               (p: { value: string; label?: string }) => ({
                 value: p.value,
                 label: p.label ?? p.value,
-              }),
-            ),
+              })
+            )
           );
           setConfigAssistants(
             (data.assistants ?? []).map(
@@ -192,8 +216,8 @@ function HomePageContent() {
                 value: a.value,
                 label: a.label ?? a.value,
                 description: a.description,
-              }),
-            ),
+              })
+            )
           );
           const access: AccessInfo | undefined = data._access;
           if (access) {
@@ -205,7 +229,7 @@ function HomePageContent() {
                 roleProblem
                   ? "No assistants available for your account. You need an appropriate AI access role in Keycloak — contact your administrator."
                   : "No assistants are available. Contact your administrator.",
-                { id: "no-access", duration: 12000 },
+                { id: "no-access", duration: 12000 }
               );
             }
           }
@@ -225,13 +249,16 @@ function HomePageContent() {
   const applyConfig = (
     newConfig: StandaloneConfig,
     resetThread: boolean,
-    subagentModels?: Record<string, string> | null,
+    subagentModels?: Record<string, string> | null
   ) => {
     const assistantChanged = config?.assistantId !== newConfig.assistantId;
     saveConfig(newConfig);
     setConfig(newConfig);
     // A link's Story and session belong to the assistant it opened, not to the next one.
+    // The URL is the source of truth on refresh, so it has to follow the switch.
+    // nuqs batches these updates into a single history replace.
     if (assistantChanged) {
+      setAssistantId(newConfig.assistantId);
       setStoryKey(null);
       setTraceSession(null);
     }
@@ -248,13 +275,27 @@ function HomePageContent() {
     }
   };
 
+  // A stale or forbidden assistantId in the URL (old bookmark, or an agent this
+  // account has no role for) would render a broken assistant and, on refresh,
+  // overwrite the saved config. Fall back once the allowed list is known.
+  useEffect(() => {
+    if (!config || configAssistants.length === 0) return;
+    if (configAssistants.some((a) => a.value === config.assistantId)) return;
+    const saved = getConfig()?.assistantId;
+    const fallback = configAssistants.some((a) => a.value === saved)
+      ? saved!
+      : configAssistants[0].value;
+    applyConfig({ ...config, assistantId: fallback, llmModelName: "" }, true);
+    // applyConfig closes over the latest config; listing it would re-run every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config?.assistantId, configAssistants]);
+
   const handleSaveConfig = (
     newConfig: StandaloneConfig,
-    subagentModels?: Record<string, string> | null,
+    subagentModels?: Record<string, string> | null
   ) => {
     const prev = config;
-    const modelChanged =
-      !!prev && prev.llmModelName !== newConfig.llmModelName;
+    const modelChanged = !!prev && prev.llmModelName !== newConfig.llmModelName;
     const assistantChanged =
       !!prev && prev.assistantId !== newConfig.assistantId;
     // The project decides which per-project tool instances an agent binds
@@ -276,8 +317,8 @@ function HomePageContent() {
         kind: assistantChanged
           ? "assistant"
           : projectChanged
-            ? "project"
-            : "model",
+          ? "project"
+          : "model",
         subagentModels,
       });
       return;
@@ -337,7 +378,7 @@ function HomePageContent() {
             typeof threadSubagentModels === "object" &&
             !Array.isArray(threadSubagentModels)
             ? (threadSubagentModels as Record<string, string>)
-            : null,
+            : null
         );
 
         const threadModel =
@@ -345,18 +386,53 @@ function HomePageContent() {
         const threadProject =
           typeof meta.PROJECT === "string" ? meta.PROJECT : null;
 
-        if (!threadModel || threadModel === snapshot.llmModelName) return;
+        // Optional: only when the checkpoint itself names the graph. LangGraph
+        // does not always write assistant_id/graph_id into checkpoint metadata;
+        // if neither field is present this is a no-op.
+        const rawAssistant =
+          (typeof meta.assistant_id === "string" && meta.assistant_id) ||
+          (typeof meta.graph_id === "string" && meta.graph_id) ||
+          null;
+        const knownAssistants = configAssistantsRef.current;
+        const threadAssistant =
+          rawAssistant && knownAssistants.some((a) => a.value === rawAssistant)
+            ? rawAssistant
+            : null;
+        if (rawAssistant && !threadAssistant && knownAssistants.length === 0) {
+          pendingAssistantMetaRef.current = {
+            threadId,
+            assistantId: rawAssistant,
+          };
+        } else {
+          pendingAssistantMetaRef.current = null;
+        }
+        const assistantFromThread =
+          !!threadAssistant && threadAssistant !== snapshot.assistantId;
+        const modelFromThread =
+          !!threadModel && threadModel !== snapshot.llmModelName;
 
-        const next: StandaloneConfig = {
-          ...snapshot,
-          llmModelName: threadModel,
-          ...(threadProject ? { project: threadProject } : {}),
-        };
+        if (!modelFromThread && !assistantFromThread) return;
+
+        const next: StandaloneConfig = { ...snapshot };
+        if (modelFromThread && threadModel) {
+          next.llmModelName = threadModel;
+          if (threadProject) next.project = threadProject;
+        }
+        if (assistantFromThread && threadAssistant) {
+          next.assistantId = threadAssistant;
+          prevAssistantRef.current = threadAssistant;
+          setAssistantId(threadAssistant);
+        }
         saveConfig(next);
         setConfig(next);
-        toast.info(
-          `Using ${threadModel.replace(/^litellm:/, "")} — the model this conversation was created with.`,
-        );
+        if (modelFromThread && threadModel) {
+          toast.info(
+            `Using ${threadModel.replace(
+              /^litellm:/,
+              ""
+            )} — the model this conversation was created with.`
+          );
+        }
       } catch {
         // Best-effort restore: a missing/failed state read leaves the current
         // model in place. The confirm dialog still guards deliberate switches.
@@ -367,7 +443,31 @@ function HomePageContent() {
     return () => {
       cancelled = true;
     };
-  }, [threadId, authReady, authorization, langsmithApiKey, config]);
+  }, [
+    threadId,
+    authReady,
+    authorization,
+    langsmithApiKey,
+    config,
+    setAssistantId,
+  ]);
+
+  // The checkpoint read can finish before /api/config returns the assistant
+  // list. Retry the assistant restore once that list exists; unknown ids are
+  // ignored so a missing or foreign graph_id never switches the agent.
+  useEffect(() => {
+    const pending = pendingAssistantMetaRef.current;
+    if (!pending || pending.threadId !== threadId || !config) return;
+    if (configAssistants.length === 0) return;
+    pendingAssistantMetaRef.current = null;
+    if (!configAssistants.some((a) => a.value === pending.assistantId)) return;
+    if (pending.assistantId === config.assistantId) return;
+    prevAssistantRef.current = pending.assistantId;
+    const next = { ...config, assistantId: pending.assistantId };
+    saveConfig(next);
+    setConfig(next);
+    setAssistantId(pending.assistantId);
+  }, [threadId, config, configAssistants, setAssistantId]);
 
   // Effective subagent models sent with each run. Never read from persisted
   // config, so stale user-saved models can't leak in.
@@ -412,7 +512,6 @@ function HomePageContent() {
 
   // On assistant switch, force the assistant's defaultModel. Otherwise only
   // correct the model when it's invalid for the current assistant/project.
-  const prevAssistantRef = React.useRef<string | null>(null);
   useEffect(() => {
     if (!config || availableModels.length === 0) return;
     const has = (name: string) => availableModels.some((m) => m.value === name);
@@ -447,12 +546,12 @@ function HomePageContent() {
     if (s === "offline" && prev !== "offline") {
       toast.error(
         "Can't reach the agent. Check that your VPN is connected and you're on the corporate network.",
-        { id: "agent-offline", duration: 8000 },
+        { id: "agent-offline", duration: 8000 }
       );
     } else if (s === "unhealthy" && prev !== "unhealthy") {
       toast.error(
         "The agent is reachable but its health check failed — it may be starting up or a dependency is down.",
-        { id: "agent-offline", duration: 8000 },
+        { id: "agent-offline", duration: 8000 }
       );
     } else if (s === "online" && (prev === "offline" || prev === "unhealthy")) {
       toast.dismiss("agent-offline");
@@ -558,24 +657,23 @@ function HomePageContent() {
       >
         <DialogContent className="sm:max-w-[440px]">
           <DialogHeader>
-            <DialogTitle>
-              Start a new conversation?
-            </DialogTitle>
+            <DialogTitle>Start a new conversation?</DialogTitle>
             <DialogDescription>
               {pendingSwitch?.kind === "assistant"
                 ? "Switching assistant starts a new conversation. Your current chat history won't carry over."
                 : pendingSwitch?.kind === "project"
-                  ? "Switching project starts a new conversation. Each project has its own data sources and tools, so the current history can't be replayed under another one."
-                  : "Switching model starts a new conversation. Chat history isn't shared across models, and keeping it can break the new model."}
+                ? "Switching project starts a new conversation. Each project has its own data sources and tools, so the current history can't be replayed under another one."
+                : "Switching model starts a new conversation. Chat history isn't shared across models, and keeping it can break the new model."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={cancelSwitch}>
+            <Button
+              variant="outline"
+              onClick={cancelSwitch}
+            >
               Cancel
             </Button>
-            <Button onClick={confirmSwitch}>
-              Start new conversation
-            </Button>
+            <Button onClick={confirmSwitch}>Start new conversation</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -620,11 +718,15 @@ function HomePageContent() {
                 >
                   <SelectTrigger className="h-7 gap-1 border-none bg-transparent px-1.5 text-sm shadow-none focus:ring-0 [&>svg]:hidden">
                     <SelectValue>
-                      {assistantLabels[config.assistantId] ?? config.assistantId}
+                      {assistantLabels[config.assistantId] ??
+                        config.assistantId}
                     </SelectValue>
                     <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
                   </SelectTrigger>
-                  <SelectContent align="end" className="max-w-[320px]">
+                  <SelectContent
+                    align="end"
+                    className="max-w-[320px]"
+                  >
                     {configAssistants.map((a) => (
                       <SelectPrimitive.Item
                         key={a.value}
@@ -642,7 +744,7 @@ function HomePageContent() {
                           </SelectPrimitive.ItemText>
                         </div>
                         {a.description && (
-                          <span className="mt-0.5 pl-[22px] text-xs text-muted-foreground whitespace-normal break-words leading-snug">
+                          <span className="mt-0.5 whitespace-normal break-words pl-[22px] text-xs leading-snug text-muted-foreground">
                             {a.description}
                           </span>
                         )}
@@ -655,7 +757,10 @@ function HomePageContent() {
                     <TooltipTrigger asChild>
                       <Info className="h-3.5 w-3.5 cursor-help text-muted-foreground/60 hover:text-muted-foreground" />
                     </TooltipTrigger>
-                    <TooltipContent side="bottom" className="max-w-xs">
+                    <TooltipContent
+                      side="bottom"
+                      className="max-w-xs"
+                    >
                       {assistantDescriptions[config.assistantId]}
                     </TooltipContent>
                   </Tooltip>
@@ -674,13 +779,16 @@ function HomePageContent() {
                       <SelectValue placeholder="Select">
                         <span className="block max-w-[140px] truncate">
                           {configProjects.find(
-                            (p) => p.value === config.project,
+                            (p) => p.value === config.project
                           )?.label ?? config.project}
                         </span>
                       </SelectValue>
                       <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
                     </SelectTrigger>
-                    <SelectContent align="end" className="max-w-[320px]">
+                    <SelectContent
+                      align="end"
+                      className="max-w-[320px]"
+                    >
                       {configProjects.map((p) => (
                         <SelectPrimitive.Item
                           key={p.value}
@@ -715,18 +823,21 @@ function HomePageContent() {
                       <SelectValue>
                         <span className="block max-w-[180px] truncate">
                           {availableModels.find(
-                            (m) => m.value === config.llmModelName,
+                            (m) => m.value === config.llmModelName
                           )?.label ?? config.llmModelName}
                         </span>
                       </SelectValue>
                       <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
                     </SelectTrigger>
-                    <SelectContent align="end" className="max-w-[320px]">
+                    <SelectContent
+                      align="end"
+                      className="max-w-[320px]"
+                    >
                       {[
                         ...availableModels,
                         ...(config.llmModelName &&
                         !availableModels.some(
-                          (m) => m.value === config.llmModelName,
+                          (m) => m.value === config.llmModelName
                         )
                           ? [
                               {
