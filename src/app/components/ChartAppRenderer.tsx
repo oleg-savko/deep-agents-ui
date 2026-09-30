@@ -1,7 +1,17 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { AppRenderer, isUIResource } from "@mcp-ui/client";
+import type {
+  McpUiStyles,
+  McpUiTheme,
+} from "@modelcontextprotocol/ext-apps/app-bridge";
 import type { ToolCall } from "@/app/types/types";
 
 /**
@@ -22,7 +32,9 @@ const shellsByUri = new Map<string, string>();
 /** The uri of the html resource block, whether or not it carries the shell. */
 function extractShellUri(artifact: unknown): string | null {
   const blocks =
-    artifact && typeof artifact === "object" ? (artifact as any).content_blocks : undefined;
+    artifact && typeof artifact === "object"
+      ? (artifact as any).content_blocks
+      : undefined;
   if (!Array.isArray(blocks)) return null;
   for (const block of blocks as unknown[]) {
     const b = block as any;
@@ -36,7 +48,9 @@ function extractShellUri(artifact: unknown): string | null {
 
 function extractShellHtml(artifact: unknown): string | null {
   const blocks =
-    artifact && typeof artifact === "object" ? (artifact as any).content_blocks : undefined;
+    artifact && typeof artifact === "object"
+      ? (artifact as any).content_blocks
+      : undefined;
   if (!Array.isArray(blocks)) return null;
   for (const block of blocks as unknown[]) {
     const b = block as any;
@@ -57,11 +71,14 @@ function extractShellHtml(artifact: unknown): string | null {
 }
 
 /** Parse tool.result string as JSON for `toolResult.structuredContent`. */
-function extractStructuredContent(result: unknown): Record<string, unknown> | null {
+function extractStructuredContent(
+  result: unknown
+): Record<string, unknown> | null {
   if (typeof result !== "string" || !result.trim()) return null;
   try {
     const parsed = JSON.parse(result);
-    if (parsed && typeof parsed === "object") return parsed as Record<string, unknown>;
+    if (parsed && typeof parsed === "object")
+      return parsed as Record<string, unknown>;
   } catch {
     /* ignore */
   }
@@ -80,6 +97,30 @@ function extractStructuredContent(result: unknown): Record<string, unknown> | nu
  * hands `AppFrame` a new object and the guest wipes whatever the user typed
  * into an `ask_user_form`.
  */
+function hslVar(style: CSSStyleDeclaration, name: string): string | undefined {
+  const value = style.getPropertyValue(name).trim();
+  return value ? `hsl(${value})` : undefined;
+}
+
+function readHostTheme(): { theme: McpUiTheme; variables: McpUiStyles } {
+  const style = getComputedStyle(document.documentElement);
+  const font = style.getPropertyValue("--font-family-base").trim();
+  const radius = style.getPropertyValue("--radius").trim();
+  return {
+    theme: document.documentElement.dataset.theme === "dark" ? "dark" : "light",
+    variables: {
+      "--color-background-primary": hslVar(style, "--background"),
+      "--color-background-secondary": hslVar(style, "--card"),
+      "--color-text-primary": hslVar(style, "--foreground"),
+      "--color-text-secondary": hslVar(style, "--muted-foreground"),
+      "--color-border-primary": hslVar(style, "--border"),
+      "--color-ring-primary": hslVar(style, "--primary"),
+      "--font-sans": font || undefined,
+      "--border-radius-md": radius || undefined,
+    } as McpUiStyles,
+  };
+}
+
 function useJsonStable<T>(value: T): T {
   const ref = useRef<{ key: string; value: T } | null>(null);
   let key: string;
@@ -119,6 +160,8 @@ interface ChartAppRendererProps {
  */
 export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
   ({ toolCall, className, height = 560, autoLoad = false }) => {
+    const growOnly = toolCall.name === "create_diagram";
+    const initialHeight = growOnly ? height : 160;
     const [active, setActive] = useState(autoLoad);
     const [err, setErr] = useState<string | null>(null);
     const [measuredHeight, setMeasuredHeight] = useState<number | null>(null);
@@ -154,16 +197,23 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
         if (iframe.style.height !== "100%") iframe.style.height = "100%";
       };
       const patch = (iframe: HTMLIFrameElement) => {
-        if (!iframe.hasAttribute("allowfullscreen")) iframe.setAttribute("allowfullscreen", "true");
+        if (!iframe.hasAttribute("allowfullscreen"))
+          iframe.setAttribute("allowfullscreen", "true");
         const allow = iframe.getAttribute("allow") ?? "";
         if (!/fullscreen/.test(allow)) {
-          iframe.setAttribute("allow", allow ? `${allow}; fullscreen` : "fullscreen");
+          iframe.setAttribute(
+            "allow",
+            allow ? `${allow}; fullscreen` : "fullscreen"
+          );
         }
         iframe.style.display = "block";
         enforceSize(iframe);
         if (!styleObservers.has(iframe)) {
           const styleObs = new MutationObserver(() => enforceSize(iframe));
-          styleObs.observe(iframe, { attributes: true, attributeFilter: ["style"] });
+          styleObs.observe(iframe, {
+            attributes: true,
+            attributeFilter: ["style"],
+          });
           styleObservers.set(iframe, styleObs);
         }
       };
@@ -172,7 +222,8 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
         for (const m of mutations) {
           m.addedNodes.forEach((node) => {
             if (node instanceof HTMLIFrameElement) patch(node);
-            else if (node instanceof HTMLElement) node.querySelectorAll("iframe").forEach(patch);
+            else if (node instanceof HTMLElement)
+              node.querySelectorAll("iframe").forEach(patch);
           });
         }
       });
@@ -194,11 +245,22 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
         const container = containerRef.current;
         const iframe = container?.querySelector("iframe");
         if (!iframe || e.source !== iframe.contentWindow) return;
-        const data = e.data as { jsonrpc?: string; method?: string; params?: { mode?: string } };
-        if (data?.jsonrpc !== "2.0" || data.method !== "ui/request-display-mode") return;
+        const data = e.data as {
+          jsonrpc?: string;
+          method?: string;
+          params?: { mode?: string };
+        };
+        if (
+          data?.jsonrpc !== "2.0" ||
+          data.method !== "ui/request-display-mode"
+        )
+          return;
         if (data.params?.mode === "fullscreen") {
           container!.requestFullscreen?.().catch(() => {});
-        } else if (data.params?.mode === "inline" && document.fullscreenElement === container) {
+        } else if (
+          data.params?.mode === "inline" &&
+          document.fullscreenElement === container
+        ) {
           document.exitFullscreen?.().catch(() => {});
         }
       };
@@ -215,26 +277,27 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
     // submit button) into the chat by dispatching a custom event ChatInterface
     // listens for. Same escape-hatch pattern as `mcp-ui-save-file`.
     const handleMessage = useCallback(
-      async (params: { role: string; content?: Array<{ type?: string; text?: string }> }) => {
-        const text =
-          (params.content ?? [])
-            .filter((b) => b?.type === "text" && typeof b.text === "string")
-            .map((b) => b.text!)
-            .join("\n")
-            .trim();
+      async (params: {
+        role: string;
+        content?: Array<{ type?: string; text?: string }>;
+      }) => {
+        const text = (params.content ?? [])
+          .filter((b) => b?.type === "text" && typeof b.text === "string")
+          .map((b) => b.text!)
+          .join("\n")
+          .trim();
         if (!text) return {};
         await new Promise<void>((resolve, reject) => {
           window.dispatchEvent(
             new CustomEvent("mcp-ui-send-message", {
               detail: { text, resolve, reject },
-            }),
+            })
           );
         });
         return {};
       },
-      [],
+      []
     );
-
 
     // Grow-only: guests like drawio re-report a small natural height on
     // scroll/visibility changes; honoring the shrink permanently collapses the
@@ -243,13 +306,28 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
       (params: { width?: number; height?: number }) => {
         if (typeof params?.height !== "number" || params.height <= 0) return;
         const requested = Math.min(params.height, 2000);
-        setMeasuredHeight((prev) => {
-          const current = prev ?? height;
-          return requested > current ? requested : current;
-        });
+        setMeasuredHeight((prev) =>
+          growOnly ? Math.max(prev ?? initialHeight, requested) : requested
+        );
       },
-      [height]
+      [growOnly, initialHeight]
     );
+
+    const [hostTheme, setHostTheme] = useState<{
+      theme: McpUiTheme;
+      variables: McpUiStyles;
+    } | null>(null);
+
+    useEffect(() => {
+      const sync = () => setHostTheme(readHostTheme());
+      sync();
+      const observer = new MutationObserver(sync);
+      observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["data-theme"],
+      });
+      return () => observer.disconnect();
+    }, []);
 
     // Either this message carries the shell, or an earlier one in the thread did
     // and this is a reference to it. Remembering it keeps the reference-only
@@ -267,12 +345,15 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
 
     const rawToolResult = useMemo(() => {
       const artifact = (toolCall as any).artifact;
-      const artifactObj = artifact && typeof artifact === "object" ? (artifact as any) : {};
+      const artifactObj =
+        artifact && typeof artifact === "object" ? (artifact as any) : {};
       const content = Array.isArray(artifactObj.content_blocks)
         ? (artifactObj.content_blocks as unknown[])
         : [];
       const structuredContent =
-        (artifactObj.structured_content as Record<string, unknown> | undefined) ??
+        (artifactObj.structured_content as
+          | Record<string, unknown>
+          | undefined) ??
         extractStructuredContent((toolCall as any).result) ??
         undefined;
       return { content, structuredContent } as any;
@@ -294,9 +375,9 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
     const toolInput = useJsonStable(rawToolInput);
     const toolResult = useJsonStable(rawToolResult);
 
-    const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">(
-      "idle"
-    );
+    const [saveStatus, setSaveStatus] = useState<
+      "idle" | "saving" | "saved" | "error"
+    >("idle");
 
     // Drawio-MCP's viewer exposes its rendered drawio XML on a top-level
     // `currentXml` var (same source as the viewer's "Copy to Clipboard"
@@ -360,13 +441,23 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
     const hostContext = useMemo(
       () => ({
         displayMode: "inline" as const,
-        availableDisplayModes: ["inline", "fullscreen"] as ("inline" | "fullscreen" | "pip")[],
+        availableDisplayModes: ["inline", "fullscreen"] as (
+          | "inline"
+          | "fullscreen"
+          | "pip"
+        )[],
+        ...(hostTheme
+          ? {
+              theme: hostTheme.theme,
+              styles: { variables: hostTheme.variables },
+            }
+          : {}),
         containerDimensions: {
-          height: measuredHeight ?? height,
+          height: measuredHeight ?? initialHeight,
           ...(containerWidth ? { width: containerWidth } : {}),
         },
       }),
-      [measuredHeight, height, containerWidth]
+      [measuredHeight, initialHeight, containerWidth, hostTheme]
     );
 
     const sandboxUrl = useMemo(
@@ -398,7 +489,9 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
             className="flex h-full w-full flex-col items-center justify-center gap-1 text-xs text-muted-foreground transition-colors hover:bg-muted/40 disabled:cursor-default disabled:hover:bg-transparent"
           >
             <span className="font-medium text-foreground">{toolCall.name}</span>
-            <span>{html ? "Нажмите, чтобы открыть" : "Приложение недоступно"}</span>
+            <span>
+              {html ? "Нажмите, чтобы открыть" : "Приложение недоступно"}
+            </span>
           </button>
         </div>
       );
@@ -408,7 +501,10 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
       <div
         ref={containerRef}
         className={className}
-        style={{ height: measuredHeight ?? height, position: "relative" }}
+        style={{
+          height: measuredHeight ?? initialHeight,
+          position: "relative",
+        }}
       >
         {canSave && (
           <button

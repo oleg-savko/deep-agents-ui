@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStream } from "@langchain/langgraph-sdk/react";
 import {
   type Message,
@@ -15,6 +15,11 @@ import { useAuthHeader } from "@/providers/AuthHeaderProvider";
 import { HumanResponse } from "@/app/types/inbox";
 import { isImageFile } from "@/app/utils/utils";
 import { useQueryState } from "nuqs";
+import {
+  clearRunStart,
+  readRunStart,
+  writeRunStart,
+} from "@/app/utils/runClock";
 
 export type StateType = {
   messages: Message[];
@@ -96,6 +101,7 @@ export function useChat({
   onHistoryRevalidate,
   thread,
   recursionLimit,
+  runsBlocked = false,
 }: {
   activeAssistant: Assistant | null;
   onHistoryRevalidate?: () => void;
@@ -103,6 +109,12 @@ export function useChat({
   /** Per-assistant graph step ceiling from config.json (`recursionLimit`).
    * Agents that work rather than chat need far more steps than a conversation does. */
   recursionLimit?: number;
+  /**
+   * True while this thread's owning assistant is unknown or differs from
+   * `activeAssistant`. Submits are refused so a chat thread can't be replayed
+   * on another agent's graph.
+   */
+  runsBlocked?: boolean;
 }) {
   const [threadId, setThreadId] = useQueryState("threadId");
   const client = useClient();
@@ -117,6 +129,14 @@ export function useChat({
   const stoppedAtRef = useRef(0);
   const onHistoryRevalidateRef = useRef(onHistoryRevalidate);
   onHistoryRevalidateRef.current = onHistoryRevalidate;
+  const runsBlockedRef = useRef(runsBlocked);
+  runsBlockedRef.current = runsBlocked;
+  /** Start of a run that may not have a thread id yet (first message). */
+  const pendingStartRef = useRef<{
+    at: number;
+    threadId: string | null;
+  } | null>(null);
+  const startGenRef = useRef(0);
 
   const stream = useStream<StateType>({
     assistantId: activeAssistant?.assistant_id || "",
@@ -135,7 +155,14 @@ export function useChat({
       if (Date.now() - stoppedAtRef.current < STOP_SILENCE_MS) return;
       setStreamFailure({ err, live: run != null, at: Date.now() });
     },
-    onCreated: onHistoryRevalidate,
+    onCreated: (run) => {
+      const pending = pendingStartRef.current;
+      if (pending && pending.threadId == null) {
+        pending.threadId = run.thread_id;
+        writeRunStart(run.thread_id, pending.at);
+      }
+      onHistoryRevalidateRef.current?.();
+    },
     experimental_thread: thread,
     // `values|namespace` from subgraphs is dropped by the SDK (`event === "values"`).
     // `updates` go through matchEventType, so root-graph todo/file patches still land.
@@ -153,20 +180,39 @@ export function useChat({
   });
 
   const runStartedAtRef = useRef<number | null>(null);
-  const prevIsLoadingRef = useRef(stream.isLoading);
+  const [runStartedAt, setRunStartedAt] = useState<number | null>(null);
+  const prevIsLoadingRef = useRef(false);
   const [responseDurationByAiMessageId, setResponseDurationByAiMessageId] =
     useState<Record<string, number>>({});
   const [isSubmittingAttachments, setIsSubmittingAttachments] = useState(false);
 
+  const setRunStart = useCallback((at: number | null) => {
+    runStartedAtRef.current = at;
+    setRunStartedAt(at);
+  }, []);
+
   const markRunStarted = useCallback(() => {
     stoppedAtRef.current = 0;
     setStreamFailure(null);
-    runStartedAtRef.current = performance.now();
-  }, []);
+    const at = Date.now();
+    pendingStartRef.current = { at, threadId: threadId ?? null };
+    setRunStart(at);
+    if (threadId) writeRunStart(threadId, at);
+  }, [setRunStart, threadId]);
 
   const reportFailure = useCallback((err: unknown, live = false) => {
     setStreamFailure({ err, live, at: Date.now() });
   }, []);
+
+  const blockIfWrongAgent = useCallback(() => {
+    if (!runsBlockedRef.current) return false;
+    reportFailure(
+      new Error(
+        "This thread belongs to another agent. Switch to that agent before sending."
+      )
+    );
+    return true;
+  }, [reportFailure]);
 
   const clearFailure = useCallback(() => {
     setStreamFailure(null);
@@ -177,18 +223,40 @@ export function useChat({
   }, [setThreadId]);
 
   useEffect(() => {
+    startGenRef.current += 1;
     setResponseDurationByAiMessageId({});
     setStreamFailure(null);
     setPolledState(null);
     stoppedAtRef.current = 0;
-  }, [threadId]);
+    // Drop the previous thread's loading transition so its finish doesn't
+    // stamp a duration onto this thread's last message.
+    prevIsLoadingRef.current = false;
+
+    const pending = pendingStartRef.current;
+    if (pending && pending.threadId == null && threadId) {
+      pending.threadId = threadId;
+      writeRunStart(threadId, pending.at);
+      setRunStart(pending.at);
+      return;
+    }
+    if (pending && threadId && pending.threadId === threadId) {
+      setRunStart(pending.at);
+      return;
+    }
+    pendingStartRef.current = null;
+    setRunStart(threadId ? readRunStart(threadId) : null);
+  }, [threadId, setRunStart]);
 
   useEffect(() => {
     const wasLoading = prevIsLoadingRef.current;
     const nowLoading = stream.isLoading;
+    prevIsLoadingRef.current = nowLoading;
+
     if (wasLoading && !nowLoading && runStartedAtRef.current != null) {
       const started = runStartedAtRef.current;
-      runStartedAtRef.current = null;
+      pendingStartRef.current = null;
+      setRunStart(null);
+      if (threadId) clearRunStart(threadId);
       const msgs = stream.messages ?? [];
       let lastAiId: string | undefined;
       for (let i = msgs.length - 1; i >= 0; i -= 1) {
@@ -199,18 +267,44 @@ export function useChat({
         }
       }
       if (lastAiId) {
-        const durationMs = Math.round(performance.now() - started);
+        const durationMs = Math.max(0, Date.now() - started);
         setResponseDurationByAiMessageId((prev) => ({
           ...prev,
           [lastAiId!]: durationMs,
         }));
       }
     }
+
     if (!wasLoading && nowLoading && runStartedAtRef.current == null) {
-      runStartedAtRef.current = performance.now();
+      const stored = threadId ? readRunStart(threadId) : null;
+      if (stored != null) {
+        pendingStartRef.current = { at: stored, threadId };
+        setRunStart(stored);
+        return;
+      }
+      const gen = ++startGenRef.current;
+      const tid = threadId;
+      void (async () => {
+        let at = Date.now();
+        if (tid) {
+          try {
+            const [run] = await client.runs.list(tid, {
+              status: "running",
+              limit: 1,
+            });
+            const parsed = run ? Date.parse(run.created_at) : NaN;
+            if (Number.isFinite(parsed)) at = Math.min(parsed, Date.now());
+          } catch {
+            // Keep the local timestamp; the timer still moves.
+          }
+        }
+        if (gen !== startGenRef.current) return;
+        pendingStartRef.current = { at, threadId: tid };
+        setRunStart(at);
+        if (tid) writeRunStart(tid, at);
+      })();
     }
-    prevIsLoadingRef.current = nowLoading;
-  }, [stream.isLoading, stream.messages]);
+  }, [stream.isLoading, stream.messages, threadId, client, setRunStart]);
 
   useEffect(() => {
     if (!stream.isLoading || !threadId) {
@@ -246,8 +340,21 @@ export function useChat({
     };
   }, [stream.isLoading, threadId, client]);
 
+  const runMetadata = useMemo(
+    () =>
+      activeAssistant?.assistant_id
+        ? { assistant_id: activeAssistant.assistant_id }
+        : undefined,
+    [activeAssistant?.assistant_id]
+  );
+
   const sendMessage = useCallback(
     async (content: string, attachments?: Attachment[]) => {
+      if (runsBlockedRef.current) {
+        throw new Error(
+          "This thread belongs to another agent. Switch to that agent before sending."
+        );
+      }
       let messageContent: Message["content"];
       const documentAttachments: Attachment[] = [];
       const inlineAttachments: Attachment[] = [];
@@ -372,6 +479,7 @@ export function useChat({
           ...(activeAssistant?.config ?? {}),
           recursion_limit: recursionLimit ?? 1000,
         },
+        ...(runMetadata ? { metadata: runMetadata } : {}),
       });
       // Update thread list immediately when sending a message
       onHistoryRevalidate?.();
@@ -383,6 +491,8 @@ export function useChat({
       threadId,
       client,
       markRunStarted,
+      runMetadata,
+      recursionLimit,
     ]
   );
 
@@ -393,6 +503,7 @@ export function useChat({
       isRerunningSubagent?: boolean,
       optimisticMessages?: Message[]
     ) => {
+      if (blockIfWrongAgent()) return;
       markRunStarted();
       if (checkpoint) {
         stream.submit(undefined, {
@@ -403,6 +514,7 @@ export function useChat({
           streamSubgraphs: true,
           config: activeAssistant?.config,
           checkpoint: checkpoint,
+          ...(runMetadata ? { metadata: runMetadata } : {}),
           ...(isRerunningSubagent
             ? { interruptAfter: ["tools"] }
             : { interruptBefore: ["tools"] }),
@@ -415,11 +527,18 @@ export function useChat({
             streamSubgraphs: true,
             config: activeAssistant?.config,
             interruptBefore: ["tools"],
+            ...(runMetadata ? { metadata: runMetadata } : {}),
           }
         );
       }
     },
-    [stream, activeAssistant?.config, markRunStarted]
+    [
+      stream,
+      activeAssistant?.config,
+      markRunStarted,
+      blockIfWrongAgent,
+      runMetadata,
+    ]
   );
 
   const setFiles = useCallback(
@@ -434,6 +553,7 @@ export function useChat({
 
   const continueStream = useCallback(
     (hasTaskToolCall?: boolean) => {
+      if (blockIfWrongAgent()) return;
       markRunStarted();
       stream.submit(undefined, {
         streamMode: [...STREAM_MODE],
@@ -442,6 +562,7 @@ export function useChat({
           ...(activeAssistant?.config || {}),
           recursion_limit: recursionLimit ?? 1000,
         },
+        ...(runMetadata ? { metadata: runMetadata } : {}),
         ...(hasTaskToolCall
           ? { interruptAfter: ["tools"] }
           : { interruptBefore: ["tools"] }),
@@ -449,21 +570,37 @@ export function useChat({
       // Update thread list when continuing stream
       onHistoryRevalidate?.();
     },
-    [stream, activeAssistant?.config, onHistoryRevalidate, markRunStarted]
+    [
+      stream,
+      activeAssistant?.config,
+      onHistoryRevalidate,
+      markRunStarted,
+      blockIfWrongAgent,
+      runMetadata,
+      recursionLimit,
+    ]
   );
 
   const sendHumanResponse = useCallback(
     (response: HumanResponse[]) => {
+      if (blockIfWrongAgent()) return;
       markRunStarted();
       stream.submit(null, {
         command: { resume: response },
         streamMode: [...STREAM_MODE],
         streamSubgraphs: true,
+        ...(runMetadata ? { metadata: runMetadata } : {}),
       });
       // Update thread list when resuming from interrupt
       onHistoryRevalidate?.();
     },
-    [stream, onHistoryRevalidate, markRunStarted]
+    [
+      stream,
+      onHistoryRevalidate,
+      markRunStarted,
+      blockIfWrongAgent,
+      runMetadata,
+    ]
   );
 
   const markCurrentThreadAsResolved = useCallback(() => {
@@ -478,9 +615,11 @@ export function useChat({
 
   const stopStream = useCallback(() => {
     stoppedAtRef.current = Date.now();
-    runStartedAtRef.current = null;
+    pendingStartRef.current = null;
+    setRunStart(null);
+    if (threadId) clearRunStart(threadId);
     stream.stop();
-  }, [stream]);
+  }, [stream, setRunStart, threadId]);
 
   return {
     stream,
@@ -502,7 +641,7 @@ export function useChat({
     stopStream,
     sendHumanResponse,
     markCurrentThreadAsResolved,
-    runStartedAtRef,
+    runStartedAt,
     streamFailure,
     reportFailure,
     clearFailure,

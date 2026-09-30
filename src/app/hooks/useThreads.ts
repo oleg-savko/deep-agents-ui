@@ -5,6 +5,7 @@ import type { Thread } from "@langchain/langgraph-sdk";
 import { Client } from "@langchain/langgraph-sdk";
 import { getConfig } from "@/lib/config";
 import { useAuthHeader } from "@/providers/AuthHeaderProvider";
+import { resolveThreadOwner } from "@/app/utils/threadOwner";
 
 export interface ThreadItem {
   id: string;
@@ -12,7 +13,15 @@ export interface ThreadItem {
   status: Thread["status"];
   title: string;
   description: string;
-  assistantId?: string;
+  /** Owning assistant, or null when the thread has never been run. */
+  assistantId: string | null;
+}
+
+export type ThreadScope = "agent" | "all";
+
+function ownerFromMeta(metadata: Thread["metadata"]): string | null {
+  const raw = metadata?.assistant_id ?? metadata?.graph_id;
+  return typeof raw === "string" && raw ? raw : null;
 }
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -20,7 +29,9 @@ const DEFAULT_PAGE_SIZE = 20;
 export function useThreads(props: {
   status?: Thread["status"];
   limit?: number;
+  scope?: ThreadScope;
 }) {
+  const scope = props.scope ?? "agent";
   const pageSize = props.limit || DEFAULT_PAGE_SIZE;
   const { authorization, ready: authReady } = useAuthHeader();
 
@@ -53,7 +64,8 @@ export function useThreads(props: {
         pageIndex,
         pageSize,
         deploymentUrl: config.deploymentUrl,
-        assistantId: config.assistantId,
+        assistantId: scope === "agent" ? config.assistantId : "",
+        scope,
         apiKey,
         authorization: authorization ?? "",
         status: props?.status,
@@ -62,6 +74,7 @@ export function useThreads(props: {
     async ({
       deploymentUrl,
       assistantId,
+      scope: pageScope,
       apiKey,
       authorization,
       status,
@@ -73,6 +86,7 @@ export function useThreads(props: {
       pageSize: number;
       deploymentUrl: string;
       assistantId: string;
+      scope: ThreadScope;
       apiKey: string;
       authorization: string;
       status?: Thread["status"];
@@ -96,13 +110,15 @@ export function useThreads(props: {
         sortBy: "updated_at",
         sortOrder: "desc",
         status,
-        // Minimal fix: do NOT filter by assistantId metadata here,
-        // since many deployments don't populate it and that caused
-        // the list to be empty.
-        // metadata: { assistant_id: assistantId },
+        // Server-side filter keeps pagination honest. Untagged legacy threads
+        // stay out of "this agent" until a view (or the backfill script) writes
+        // assistant_id onto them.
+        ...(pageScope === "agent" && assistantId
+          ? { metadata: { assistant_id: assistantId } }
+          : {}),
       });
 
-      return threads.map((thread): ThreadItem => {
+      const items = threads.map((thread): ThreadItem => {
         let title = "Untitled Thread";
         let description = "";
 
@@ -153,9 +169,22 @@ export function useThreads(props: {
           status: thread.status,
           title,
           description,
-          assistantId,
+          assistantId: ownerFromMeta(thread.metadata),
         };
       });
+
+      await Promise.all(
+        items.map(async (item, index) => {
+          if (item.assistantId) return;
+          try {
+            item.assistantId = await resolveThreadOwner(client, threads[index]);
+          } catch {
+            item.assistantId = null;
+          }
+        })
+      );
+
+      return items;
     },
     {
       revalidateFirstPage: true,

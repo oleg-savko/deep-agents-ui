@@ -6,7 +6,12 @@ import { SubAgentIndicator } from "@/app/components/SubAgentIndicator";
 import { ToolCallBox } from "@/app/components/ToolCallBox";
 import { MarkdownContent } from "@/app/components/MarkdownContent";
 import { ChartAppRenderer } from "@/app/components/ChartAppRenderer";
-import type { SubAgent, SubAgentRun, SubAgentStatus, ToolCall } from "@/app/types/types";
+import type {
+  SubAgent,
+  SubAgentRun,
+  SubAgentStatus,
+  ToolCall,
+} from "@/app/types/types";
 import { Interrupt, Message } from "@langchain/langgraph-sdk";
 import {
   extractSubAgentContent,
@@ -65,14 +70,14 @@ function renderAppPlaceholders(
   autoLoad: boolean
 ) {
   const parts: Array<
-    | { kind: "md"; value: string }
-    | { kind: "app"; index: number; raw: string }
+    { kind: "md"; value: string } | { kind: "app"; index: number; raw: string }
   > = [];
   let lastIndex = 0;
   APP_PLACEHOLDER_RE.lastIndex = 0;
   let m: RegExpExecArray | null;
   while ((m = APP_PLACEHOLDER_RE.exec(markdown)) !== null) {
-    if (m.index > lastIndex) parts.push({ kind: "md", value: markdown.slice(lastIndex, m.index) });
+    if (m.index > lastIndex)
+      parts.push({ kind: "md", value: markdown.slice(lastIndex, m.index) });
     const n = m[1] ? Number(m[1]) : 1;
     parts.push({
       kind: "app",
@@ -81,18 +86,29 @@ function renderAppPlaceholders(
     });
     lastIndex = m.index + m[0].length;
   }
-  if (lastIndex < markdown.length) parts.push({ kind: "md", value: markdown.slice(lastIndex) });
+  if (lastIndex < markdown.length)
+    parts.push({ kind: "md", value: markdown.slice(lastIndex) });
 
   return (
     <>
       {parts.map((p, i) => {
         if (p.kind === "md") {
           if (!p.value.trim()) return <React.Fragment key={`md-${i}`} />;
-          return <MarkdownContent key={`md-${i}`} content={p.value} />;
+          return (
+            <MarkdownContent
+              key={`md-${i}`}
+              content={p.value}
+            />
+          );
         }
         const toolCall = uiToolCalls[p.index];
         if (!toolCall) {
-          return <MarkdownContent key={`md-missing-${i}`} content={p.raw} />;
+          return (
+            <MarkdownContent
+              key={`md-missing-${i}`}
+              content={p.raw}
+            />
+          );
         }
         return (
           <ChartAppRenderer
@@ -178,9 +194,15 @@ export const ChatMessage = React.memo<ChatMessageProps>(
     const hasContent = messageContent && messageContent.trim() !== "";
     const hasToolCalls = toolCalls.length > 0;
 
-    const imageBlocks = useMemo(() => extractImagesFromMessageContent(message), [message]);
+    const imageBlocks = useMemo(
+      () => extractImagesFromMessageContent(message),
+      [message]
+    );
     const toolResultImageUrls = useMemo(
-      () => toolCalls.flatMap((tc) => (tc.resultImages ?? []).map((img) => img.url)),
+      () =>
+        toolCalls.flatMap((tc) =>
+          (tc.resultImages ?? []).map((img) => img.url)
+        ),
       [toolCalls]
     );
     const displayImageUrls = useMemo(
@@ -188,14 +210,18 @@ export const ChatMessage = React.memo<ChatMessageProps>(
       [imageBlocks, toolResultImageUrls]
     );
     const aiMarkdownForDisplay = useMemo(
-      () => (isAIMessage ? stripUndisplayableMarkdownImages(messageContent) : messageContent),
+      () =>
+        isAIMessage
+          ? stripUndisplayableMarkdownImages(messageContent)
+          : messageContent,
       [isAIMessage, messageContent]
     );
     const fileAttachments = useMemo(
       () => extractFileAttachmentsFromMessageContent(message),
       [message]
     );
-    const hasAttachments = displayImageUrls.length > 0 || fileAttachments.length > 0;
+    const hasAttachments =
+      displayImageUrls.length > 0 || fileAttachments.length > 0;
 
     const nestedToolCallIds = useMemo(() => {
       const set = new Set<string>();
@@ -227,7 +253,9 @@ export const ChatMessage = React.memo<ChatMessageProps>(
         );
     }, [toolCalls]);
 
-    const [expandedSubAgents, setExpandedSubAgents] = useState<Record<string, boolean>>({});
+    const [expandedSubAgents, setExpandedSubAgents] = useState<
+      Record<string, boolean>
+    >({});
     const isSubAgentExpanded = useCallback(
       (id: string) => expandedSubAgents[id] ?? true,
       [expandedSubAgents]
@@ -270,133 +298,172 @@ export const ChatMessage = React.memo<ChatMessageProps>(
           isUser && "flex-row-reverse"
         )}
       >
-        <div className={cn("min-w-0 max-w-full", isUser ? "max-w-[70%]" : "w-full")}>
+        <div
+          className={cn(
+            "min-w-0 max-w-full",
+            isUser ? "max-w-[70%]" : "w-full"
+          )}
+        >
           {(hasContent || hasAttachments || debugMode) && (
-            <div className={cn("relative flex items-end gap-0")}>
-              <div
-                className={cn(
-                  "mt-4 overflow-hidden break-words text-sm font-normal leading-[150%]",
-                  isUser
-                    ? "rounded-xl rounded-br-none border border-border px-3 py-2 text-foreground"
-                    : "text-primary"
-                )}
-                style={
-                  isUser
-                    ? { backgroundColor: "var(--color-user-message-bg)" }
-                    : undefined
-                }
-              >
-                {displayImageUrls.length > 0 && (
-                  <div className="mb-2 flex flex-wrap gap-2">
-                    {displayImageUrls.map((url, idx) => (
-                      <a
-                        key={`${url.slice(0, 48)}-${idx}`}
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block"
-                      >
-                        <img
-                          src={url}
-                          alt={`Attachment ${idx + 1}`}
-                          className="max-h-48 max-w-full rounded-md border border-border object-contain"
-                        />
-                      </a>
-                    ))}
-                  </div>
-                )}
-                {isUser ? (
-                  hasContent ? (
-                    isInternalUserMessage(messageContent) && !debugMode ? (
-                      <p className="m-0 whitespace-pre-wrap break-words text-xs italic leading-relaxed text-muted-foreground">
-                        ↳ Internal payload hidden (toggle &quot;internal LLM steps&quot; to view)
-                      </p>
+            <>
+              <div className={cn("relative flex items-end gap-0")}>
+                <div
+                  className={cn(
+                    "mt-4 overflow-hidden break-words text-sm font-normal leading-[150%]",
+                    isUser
+                      ? "rounded-xl rounded-br-none border border-border px-3 py-2 text-foreground"
+                      : "text-primary"
+                  )}
+                  style={
+                    isUser
+                      ? { backgroundColor: "var(--color-user-message-bg)" }
+                      : undefined
+                  }
+                >
+                  {displayImageUrls.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-2">
+                      {displayImageUrls.map((url, idx) => (
+                        <a
+                          key={`${url.slice(0, 48)}-${idx}`}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block"
+                        >
+                          <img
+                            src={url}
+                            alt={`Attachment ${idx + 1}`}
+                            className="max-h-48 max-w-full rounded-md border border-border object-contain"
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                  {isUser ? (
+                    hasContent ? (
+                      isInternalUserMessage(messageContent) && !debugMode ? (
+                        <p className="m-0 whitespace-pre-wrap break-words text-xs italic leading-relaxed text-muted-foreground">
+                          ↳ Internal payload hidden (toggle &quot;internal LLM
+                          steps&quot; to view)
+                        </p>
+                      ) : (
+                        <p className="m-0 whitespace-pre-wrap break-words text-sm leading-relaxed">
+                          {stripInternalMarker(messageContent)}
+                        </p>
+                      )
+                    ) : null
+                  ) : hasContent ? (
+                    hasAppPlaceholders ? (
+                      renderAppPlaceholders(
+                        aiMarkdownForDisplay,
+                        uiToolCalls,
+                        Boolean(isLastMessage)
+                      )
                     ) : (
-                      <p className="m-0 whitespace-pre-wrap break-words text-sm leading-relaxed">
-                        {stripInternalMarker(messageContent)}
-                      </p>
+                      <MarkdownContent content={aiMarkdownForDisplay} />
                     )
-                  ) : null
-                ) : hasContent ? (
-                  hasAppPlaceholders ? (
-                    renderAppPlaceholders(
-                      aiMarkdownForDisplay,
-                      uiToolCalls,
-                      Boolean(isLastMessage)
-                    )
-                  ) : (
-                    <MarkdownContent content={aiMarkdownForDisplay} />
-                  )
-                ) : null}
-                {fileAttachments.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {fileAttachments.map((file, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => onPreviewFile?.(file.name)}
-                        title={`Preview ${file.name}`}
-                        className="flex items-center gap-1.5 rounded-md border border-[#266BD1]/40 bg-[#266BD1]/15 px-2 py-1 text-xs text-[#266BD1] transition-colors hover:bg-[#266BD1]/25"
-                      >
-                        <FileIcon size={12} className="flex-shrink-0" />
-                        <span className="max-w-[200px] truncate font-medium">{file.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                  ) : null}
+                  {fileAttachments.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {fileAttachments.map((file, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => onPreviewFile?.(file.name)}
+                          title={`Preview ${file.name}`}
+                          className="flex items-center gap-1.5 rounded-md border border-[#266BD1]/40 bg-[#266BD1]/15 px-2 py-1 text-xs text-[#266BD1] transition-colors hover:bg-[#266BD1]/25"
+                        >
+                          <FileIcon
+                            size={12}
+                            className="flex-shrink-0"
+                          />
+                          <span className="max-w-[200px] truncate font-medium">
+                            {file.name}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               {debugMode && isAIMessage && !(isLastMessage && isLoading) && (
-                <button
-                  onClick={() => onRestartFromAIMessage(message)}
-                  className="absolute bottom-1 right-1 -scale-x-100 rounded-full bg-black/10 p-1 transition-colors duration-200 hover:bg-black/20"
-                >
-                  <RotateCcw className="h-3 w-3 text-gray-600" />
-                </button>
-              )}
-            </div>
-          )}
-          {isAIMessage && !isLoading && message.id && (() => {
-            const msgUsage = (message as any).usage_metadata as
-              | { input_tokens?: number; output_tokens?: number; total_tokens?: number }
-              | undefined;
-            const formatTok = (n: number) =>
-              n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
-            const hasFooter =
-              hasContent ||
-              responseDurationMs != null ||
-              (debugMode && !!msgUsage) ||
-              (debugMode && !!totalTokenUsage);
-            if (!hasFooter) return null;
-            return (
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                {hasContent && isLastMessage && <FeedbackButtons traceId={message.id} />}
-                {responseDurationMs != null && (
-                  <span
-                    className="text-muted-foreground text-xs tabular-nums"
-                    title="Time from your request until this reply finished (measured in the browser)"
+                <div className="mt-1 flex justify-end">
+                  <button
+                    onClick={() => onRestartFromAIMessage(message)}
+                    className="rounded-full bg-muted p-1 text-muted-foreground transition-colors duration-200 hover:bg-accent"
+                    title="Restart from this message"
                   >
-                    {formatAgentResponseDuration(responseDurationMs)}
-                  </span>
-                )}
-                {debugMode && msgUsage && (msgUsage.input_tokens ?? 0) + (msgUsage.output_tokens ?? 0) > 0 && (
-                  <span className="text-muted-foreground text-xs tabular-nums" title="Token usage for this message (input / output)">
-                    ↑{formatTok(msgUsage.input_tokens ?? 0)} ↓{formatTok(msgUsage.output_tokens ?? 0)}
-                  </span>
-                )}
-                {debugMode && totalTokenUsage && (
-                  <span className="text-muted-foreground text-xs tabular-nums font-medium" title="Total token usage for this response">
-                    Total: ↑{formatTok(totalTokenUsage.input)} ↓{formatTok(totalTokenUsage.output)}
-                  </span>
-                )}
-              </div>
-            );
-          })()}
+                    <RotateCcw className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+          {isAIMessage &&
+            !isLoading &&
+            message.id &&
+            (() => {
+              const msgUsage = (message as any).usage_metadata as
+                | {
+                    input_tokens?: number;
+                    output_tokens?: number;
+                    total_tokens?: number;
+                  }
+                | undefined;
+              const formatTok = (n: number) =>
+                n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
+              const hasFooter =
+                hasContent ||
+                responseDurationMs != null ||
+                (debugMode && !!msgUsage) ||
+                (debugMode && !!totalTokenUsage);
+              if (!hasFooter) return null;
+              return (
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  {hasContent && isLastMessage && (
+                    <FeedbackButtons traceId={message.id} />
+                  )}
+                  {responseDurationMs != null && (
+                    <span
+                      className="text-xs tabular-nums text-muted-foreground"
+                      title="Time from your request until this reply finished (measured in the browser)"
+                    >
+                      {formatAgentResponseDuration(responseDurationMs)}
+                    </span>
+                  )}
+                  {debugMode &&
+                    msgUsage &&
+                    (msgUsage.input_tokens ?? 0) +
+                      (msgUsage.output_tokens ?? 0) >
+                      0 && (
+                      <span
+                        className="text-xs tabular-nums text-muted-foreground"
+                        title="Token usage for this message (input / output)"
+                      >
+                        ↑{formatTok(msgUsage.input_tokens ?? 0)} ↓
+                        {formatTok(msgUsage.output_tokens ?? 0)}
+                      </span>
+                    )}
+                  {debugMode && totalTokenUsage && (
+                    <span
+                      className="text-xs font-medium tabular-nums text-muted-foreground"
+                      title="Total token usage for this response"
+                    >
+                      Total: ↑{formatTok(totalTokenUsage.input)} ↓
+                      {formatTok(totalTokenUsage.output)}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
           {hasToolCalls && debugMode && (
             <div className="mt-4 flex w-full flex-col">
               {toolCalls.map((toolCall, idx, arr) => {
                 if (toolCall.name === "task") return null;
                 if (nestedToolCallIds.has(toolCall.id)) return null;
-                const uiComponent = ui?.find((u) => u.metadata?.tool_call_id === toolCall.id);
+                const uiComponent = ui?.find(
+                  (u) => u.metadata?.tool_call_id === toolCall.id
+                );
                 const isInterrupted =
                   idx === arr.length - 1 &&
                   toolCall.name === interruptTitle &&
@@ -416,13 +483,17 @@ export const ChatMessage = React.memo<ChatMessageProps>(
           {!isUser && subAgents.length > 0 && debugMode && (
             <div className="flex w-fit max-w-full flex-col gap-4">
               {subAgents.map((subAgent) => (
-                <div key={subAgent.id} className="flex w-full flex-col gap-2">
+                <div
+                  key={subAgent.id}
+                  className="flex w-full flex-col gap-2"
+                >
                   <div className="flex items-end gap-2">
                     <div className="w-[calc(100%-100px)]">
                       {(() => {
                         const run = subAgentRunsByTaskId?.[subAgent.id];
                         const durationMs =
-                          run?.startedAt !== undefined && run?.endedAt !== undefined
+                          run?.startedAt !== undefined &&
+                          run?.endedAt !== undefined
                             ? run.endedAt - run.startedAt
                             : undefined;
                         return (
@@ -454,7 +525,9 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                           Input
                         </h4>
                         <div className="mb-4">
-                          <MarkdownContent content={extractSubAgentContent(subAgent.input)} />
+                          <MarkdownContent
+                            content={extractSubAgentContent(subAgent.input)}
+                          />
                         </div>
 
                         {(() => {
@@ -495,7 +568,9 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                                       );
                                     }
                                     const uiComponent = ui?.find(
-                                      (u) => u.metadata?.tool_call_id === item.toolCall.id
+                                      (u) =>
+                                        u.metadata?.tool_call_id ===
+                                        item.toolCall.id
                                     );
                                     return (
                                       <ToolCallBox
@@ -517,7 +592,9 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                             <h4 className="text-primary/70 mb-2 text-xs font-semibold uppercase tracking-wider">
                               Output
                             </h4>
-                            <MarkdownContent content={extractSubAgentContent(subAgent.output)} />
+                            <MarkdownContent
+                              content={extractSubAgentContent(subAgent.output)}
+                            />
                           </>
                         )}
                       </div>
