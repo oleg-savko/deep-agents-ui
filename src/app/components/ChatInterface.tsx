@@ -50,6 +50,7 @@ import { useQueryState } from "nuqs";
 import { cn } from "@/lib/utils";
 import { useStickToBottom } from "use-stick-to-bottom";
 import { FilesPopover } from "@/app/components/TasksFilesSidebar";
+import { getFileContent } from "@/app/utils/fileTree";
 import { toast } from "sonner";
 import {
   Tooltip,
@@ -369,7 +370,8 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     // what the user has typed.
     const prefilledRef = useRef<string | null>(null);
     useEffect(() => {
-      if (!initialInput || threadId || prefilledRef.current === initialInput) return;
+      if (!initialInput || threadId || prefilledRef.current === initialInput)
+        return;
       prefilledRef.current = initialInput;
       _setInput((cur) => cur || initialInput);
     }, [initialInput, threadId]);
@@ -775,14 +777,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           Object.keys(current).find((k) => k.endsWith(`/${name}`));
         if (!key) return;
         const raw = (current as Record<string, unknown>)[key];
-        let content: string;
-        if (raw && typeof raw === "object" && "content" in raw) {
-          const c = (raw as { content: unknown }).content;
-          content = Array.isArray(c) ? c.join("\n") : String(c ?? "");
-        } else {
-          content = String(raw ?? "");
-        }
-        setPreviewFile({ path: name, content });
+        setPreviewFile({ path: name, content: getFileContent(raw) });
       },
       [files]
     );
@@ -1584,7 +1579,12 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
             )}
           >
             {(hasTasks || hasFiles) && (
-              <div className="flex max-h-72 flex-col overflow-y-auto border-b border-border bg-sidebar empty:hidden">
+              <div
+                className={cn(
+                  "flex flex-col overflow-y-auto border-b border-border bg-sidebar empty:hidden",
+                  metaOpen === "files" ? "max-h-[50vh]" : "max-h-72"
+                )}
+              >
                 {!metaOpen && (
                   <>
                     {(() => {

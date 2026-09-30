@@ -7,18 +7,14 @@ import React, {
   useEffect,
   useRef,
 } from "react";
-import {
-  FileText,
-  CheckCircle,
-  Circle,
-  Clock,
-  ChevronDown,
-} from "lucide-react";
+import { CheckCircle, Circle, Clock, ChevronDown } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { TodoItem, FileItem } from "@/app/types/types";
 import { useChatContext } from "@/providers/ChatProvider";
 import { cn } from "@/lib/utils";
 import { FileViewDialog } from "@/app/components/FileViewDialog";
+import { FileTree } from "@/app/components/FileTree";
+import { getFileContent } from "@/app/utils/fileTree";
 
 export function FilesPopover({
   files,
@@ -46,57 +42,15 @@ export function FilesPopover({
           <p className="text-xs text-muted-foreground">No files created yet</p>
         </div>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(256px,1fr))] gap-2">
-          {Object.keys(files).map((file) => {
-            const filePath = String(file);
-            const rawContent = files[file];
-            let fileContent: string;
-            if (
-              typeof rawContent === "object" &&
-              rawContent !== null &&
-              "content" in rawContent
-            ) {
-              const contentArray = (rawContent as { content: unknown }).content;
-              if (Array.isArray(contentArray)) {
-                fileContent = contentArray.join("\n");
-              } else {
-                fileContent = String(contentArray || "");
-              }
-            } else {
-              fileContent = String(rawContent || "");
-            }
-
-            return (
-              <button
-                key={filePath}
-                type="button"
-                onClick={() =>
-                  setSelectedFile({ path: filePath, content: fileContent })
-                }
-                className="cursor-pointer space-y-1 truncate rounded-md border border-border px-2 py-3 shadow-sm transition-colors"
-                style={{
-                  backgroundColor: "var(--color-file-button)",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor =
-                    "var(--color-file-button-hover)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor =
-                    "var(--color-file-button)";
-                }}
-              >
-                <FileText
-                  size={24}
-                  className="mx-auto text-muted-foreground"
-                />
-                <span className="mx-auto block w-full truncate break-words text-center text-sm leading-relaxed text-foreground">
-                  {filePath}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <FileTree
+          files={files}
+          onOpen={(path) =>
+            setSelectedFile({
+              path,
+              content: getFileContent(files[path]),
+            })
+          }
+        />
       )}
 
       {selectedFile && (
