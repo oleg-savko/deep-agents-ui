@@ -23,6 +23,7 @@ import {
   stripUndisplayableMarkdownImages,
 } from "@/app/utils/utils";
 import { cn } from "@/lib/utils";
+import { resolveUiToolCalls } from "@/app/utils/uiApps";
 import { FeedbackButtons } from "@/app/components/FeedbackButtons";
 
 function formatAgentResponseDuration(ms: number): string {
@@ -37,6 +38,7 @@ function formatAgentResponseDuration(ms: number): string {
 // Single placeholder kind. Any MCP-UI tool is detected by the presence of an
 // HTML resource block in the tool's artifact — no per-kind hardcoding.
 const APP_PLACEHOLDER_RE = /\[\[app(?::(\d+))?\]\]/g;
+const EMPTY_APP_IDS = new Set<string>();
 
 /**
  * Marker prefix iframe-driven MCP-app forms (e.g. jira_required_fields_ui)
@@ -67,7 +69,8 @@ function stripInternalMarker(content: string): string {
 function renderAppPlaceholders(
   markdown: string,
   uiToolCalls: ToolCall[],
-  autoLoad: boolean
+  autoLoad: boolean,
+  hidden: Set<string>
 ) {
   const parts: Array<
     { kind: "md"; value: string } | { kind: "app"; index: number; raw: string }
@@ -102,6 +105,9 @@ function renderAppPlaceholders(
           );
         }
         const toolCall = uiToolCalls[p.index];
+        if (toolCall && hidden.has(toolCall.id)) {
+          return <React.Fragment key={`app-hidden-${i}`} />;
+        }
         if (!toolCall) {
           return (
             <MarkdownContent
@@ -123,26 +129,6 @@ function renderAppPlaceholders(
   );
 }
 
-/**
- * Returns true if the tool call's artifact contains an HTML resource block —
- * i.e. it produced an MCP-UI iframe. This is the single source of truth for
- * "is this a UI tool call", replacing per-name (chart/diagram/form) checks.
- */
-function hasUIArtifact(tc: ToolCall): boolean {
-  const artifact = (tc as unknown as { artifact?: unknown }).artifact;
-  const blocks =
-    artifact && typeof artifact === "object"
-      ? (artifact as { content_blocks?: unknown }).content_blocks
-      : undefined;
-  if (!Array.isArray(blocks)) return false;
-  for (const b of blocks as unknown[]) {
-    const block = b as { type?: string; resource?: { mimeType?: string } };
-    if (block?.type !== "resource" || !block.resource) continue;
-    if (/html/i.test(String(block.resource.mimeType ?? ""))) return true;
-  }
-  return false;
-}
-
 interface ChatMessageProps {
   message: Message;
   toolCalls: ToolCall[];
@@ -154,6 +140,8 @@ interface ChatMessageProps {
    * conversation history.
    */
   turnToolCalls?: ToolCall[];
+  /** App tool calls already rendered by a later message in this turn. */
+  hiddenAppIds?: Set<string>;
   subAgentRunsByTaskId?: Record<string, SubAgentRun>;
   onRestartFromAIMessage: (message: Message) => void;
   onRestartFromSubTask: (toolCallId: string) => void;
@@ -173,6 +161,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(
     message,
     toolCalls,
     turnToolCalls,
+    hiddenAppIds,
     subAgentRunsByTaskId,
     onRestartFromAIMessage,
     onRestartFromSubTask,
@@ -284,11 +273,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(
     // gets resolved automatically.
     const uiToolCalls = useMemo(() => {
       if (!hasAppPlaceholders) return [];
-      const source =
-        toolCalls.some(hasUIArtifact) || !turnToolCalls?.length
-          ? toolCalls
-          : turnToolCalls;
-      return source.filter(hasUIArtifact);
+      return resolveUiToolCalls(toolCalls, turnToolCalls);
     }, [hasAppPlaceholders, toolCalls, turnToolCalls]);
 
     return (
@@ -306,13 +291,18 @@ export const ChatMessage = React.memo<ChatMessageProps>(
         >
           {(hasContent || hasAttachments || debugMode) && (
             <>
-              <div className={cn("relative flex items-end gap-0")}>
+              <div
+                className={cn(
+                  "relative flex items-end gap-0",
+                  !isUser && "w-full"
+                )}
+              >
                 <div
                   className={cn(
                     "mt-4 overflow-hidden break-words text-sm font-normal leading-[150%]",
                     isUser
                       ? "rounded-xl rounded-br-none border border-border px-3 py-2 text-foreground"
-                      : "text-primary"
+                      : "w-full text-primary"
                   )}
                   style={
                     isUser
@@ -357,7 +347,8 @@ export const ChatMessage = React.memo<ChatMessageProps>(
                       renderAppPlaceholders(
                         aiMarkdownForDisplay,
                         uiToolCalls,
-                        Boolean(isLastMessage)
+                        Boolean(isLastMessage),
+                        hiddenAppIds ?? EMPTY_APP_IDS
                       )
                     ) : (
                       <MarkdownContent content={aiMarkdownForDisplay} />

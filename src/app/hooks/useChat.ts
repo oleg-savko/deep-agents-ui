@@ -343,7 +343,7 @@ export function useChat({
   const runMetadata = useMemo(
     () =>
       activeAssistant?.assistant_id
-        ? { assistant_id: activeAssistant.assistant_id }
+        ? { graph_id: activeAssistant.assistant_id }
         : undefined,
     [activeAssistant?.assistant_id]
   );

@@ -316,7 +316,7 @@ export const ChartAppRenderer = React.memo<ChartAppRendererProps>(
     const [hostTheme, setHostTheme] = useState<{
       theme: McpUiTheme;
       variables: McpUiStyles;
-    } | null>(null);
+    } | null>(() => (typeof window === "undefined" ? null : readHostTheme()));
 
     useEffect(() => {
       const sync = () => setHostTheme(readHostTheme());

@@ -44,7 +44,7 @@ import { AccessNotice, type AccessInfo } from "@/app/components/AccessNotice";
 import { ConnectivityBanner } from "@/app/components/ConnectivityBanner";
 import { useAgentHealth, type AgentHealth } from "@/app/hooks/useAgentHealth";
 import { toast } from "sonner";
-import { resolveThreadOwner } from "@/app/utils/threadOwner";
+import { isAssistantUuid, resolveThreadGraph } from "@/app/utils/threadOwner";
 import {
   Dialog,
   DialogContent,
@@ -391,20 +391,24 @@ function HomePageContent() {
         const threadProject =
           typeof meta.PROJECT === "string" ? meta.PROJECT : null;
 
-        // Optional: only when the checkpoint itself names the graph. LangGraph
-        // does not always write assistant_id/graph_id into checkpoint metadata;
-        // if neither field is present this is a no-op.
+        // Checkpoint `assistant_id` is the server UUID, not the graph name.
+        // A UUID here used to fail the allow-list check and refuse the thread.
+        const knownAssistants = configAssistantsRef.current;
         let rawAssistant =
-          (typeof meta.assistant_id === "string" && meta.assistant_id) ||
-          (typeof meta.graph_id === "string" && meta.graph_id) ||
-          null;
-        // Checkpoint metadata often has no assistant. The run that created the
-        // thread does, and so does thread metadata once we've tagged it.
+          (typeof meta.graph_id === "string" && meta.graph_id) || null;
+        if (
+          rawAssistant &&
+          (isAssistantUuid(rawAssistant) ||
+            (knownAssistants.length > 0 &&
+              !knownAssistants.some((a) => a.value === rawAssistant)))
+        ) {
+          rawAssistant = null;
+        }
         if (!rawAssistant) {
           try {
             const thread = await client.threads.get(threadId);
             if (cancelled) return;
-            rawAssistant = await resolveThreadOwner(client, {
+            rawAssistant = await resolveThreadGraph(client, {
               thread_id: threadId,
               metadata: thread.metadata,
             });
@@ -413,7 +417,6 @@ function HomePageContent() {
           }
           if (cancelled) return;
         }
-        const knownAssistants = configAssistantsRef.current;
         const threadAssistant =
           rawAssistant && knownAssistants.some((a) => a.value === rawAssistant)
             ? rawAssistant
@@ -423,16 +426,21 @@ function HomePageContent() {
             threadId,
             assistantId: rawAssistant,
           };
-        } else if (rawAssistant && !threadAssistant) {
+        } else if (
+          rawAssistant &&
+          !threadAssistant &&
+          !isAssistantUuid(rawAssistant)
+        ) {
           pendingAssistantMetaRef.current = null;
-          const label =
-            knownAssistants.find((a) => a.value === rawAssistant)?.label ??
-            rawAssistant;
-          toast.error(`Тред принадлежит агенту ${label}, к нему нет доступа`);
+          toast.error(
+            `Тред принадлежит агенту ${rawAssistant}, к нему нет доступа`
+          );
           setResolvedOwner(null);
           setThreadId(null);
           return;
         } else {
+          // Unknown id (UUID we could not map, or no runs): open on the
+          // current agent instead of locking the composer.
           pendingAssistantMetaRef.current = null;
           setResolvedOwner({ threadId, owner: threadAssistant });
         }
@@ -494,11 +502,15 @@ function HomePageContent() {
     if (configAssistants.length === 0) return;
     pendingAssistantMetaRef.current = null;
     if (!configAssistants.some((a) => a.value === pending.assistantId)) {
-      toast.error(
-        `Тред принадлежит агенту ${pending.assistantId}, к нему нет доступа`
-      );
-      setResolvedOwner(null);
-      setThreadId(null);
+      if (!isAssistantUuid(pending.assistantId)) {
+        toast.error(
+          `Тред принадлежит агенту ${pending.assistantId}, к нему нет доступа`
+        );
+        setResolvedOwner(null);
+        setThreadId(null);
+        return;
+      }
+      setResolvedOwner({ threadId: pending.threadId, owner: null });
       return;
     }
     setResolvedOwner({
@@ -989,10 +1001,10 @@ function HomePageContent() {
                     <ThreadList
                       assistantLabels={assistantLabels}
                       onThreadSelect={async (id, owner) => {
-                        if (
-                          owner &&
-                          !configAssistants.some((a) => a.value === owner)
-                        ) {
+                        const known =
+                          !!owner &&
+                          configAssistants.some((a) => a.value === owner);
+                        if (owner && !known && !isAssistantUuid(owner)) {
                           toast.error(
                             `Тред принадлежит агенту ${
                               assistantLabels[owner] ?? owner
@@ -1000,14 +1012,17 @@ function HomePageContent() {
                           );
                           return;
                         }
-                        if (owner && owner !== config.assistantId) {
+                        if (known && owner !== config.assistantId) {
                           prevAssistantRef.current = owner;
                           applyConfig(
                             { ...config, assistantId: owner, llmModelName: "" },
                             false
                           );
                         }
-                        setResolvedOwner({ threadId: id, owner });
+                        setResolvedOwner({
+                          threadId: id,
+                          owner: known ? owner : null,
+                        });
                         await setThreadId(id);
                       }}
                       onMutateReady={(fn) => setMutateThreads(() => fn)}
