@@ -13,13 +13,23 @@ import type { Attachment, TodoItem } from "@/app/types/types";
 import { useClient } from "@/providers/ClientProvider";
 import { useAuthHeader } from "@/providers/AuthHeaderProvider";
 import { HumanResponse } from "@/app/types/inbox";
-import { isImageFile } from "@/app/utils/utils";
 import { useQueryState } from "nuqs";
 import {
   clearRunStart,
   readRunStart,
   writeRunStart,
 } from "@/app/utils/runClock";
+import {
+  buildHumanContent,
+  buildRunOptions,
+} from "@/app/hooks/chat/buildMessage";
+import {
+  extractStatePatch,
+  isMainAgentNamespace,
+  lastAiMessageId,
+  pickFiles,
+  pickTodos,
+} from "@/app/hooks/chat/streamState";
 
 export type StateType = {
   messages: Message[];
@@ -48,53 +58,7 @@ export type StreamFailure = {
  */
 const STOP_SILENCE_MS = 3000;
 
-/**
- * Declared explicitly instead of relying on the SDK inferring modes from which
- * getters happen to be read during render: `todos` and `files` come from
- * `stream.values`, and a refactor that moves that read into a component would
- * otherwise silently drop the mode from the request.
- */
-const STREAM_MODE = ["values", "messages-tuple"] as const;
-
 const STATE_POLL_MS = 10_000;
-
-/**
- * Root-graph updates arrive un-namespaced. Subagent graphs (`streamSubgraphs`)
- * prefix events with a namespace; their todos/files must not overwrite the
- * main agent's plan. If the root itself is wrapped (depth 1), the getState
- * poll still surfaces the committed checkpoint.
- */
-function isMainAgentNamespace(namespace: string[] | undefined): boolean {
-  return namespace == null || namespace.length === 0;
-}
-
-function todoProgress(todos: TodoItem[]): number {
-  return todos.reduce(
-    (n, t) =>
-      n + (t.status === "completed" ? 2 : t.status === "in_progress" ? 1 : 0),
-    0
-  );
-}
-
-function pickTodos(
-  streamed: TodoItem[] | undefined,
-  polled: TodoItem[] | undefined
-): TodoItem[] {
-  const s = streamed ?? [];
-  const p = polled ?? [];
-  if (!p.length) return s;
-  if (!s.length) return p;
-  return todoProgress(p) > todoProgress(s) ? p : s;
-}
-
-function pickFiles(
-  streamed: Record<string, string> | undefined,
-  polled: Record<string, string> | undefined
-): Record<string, string> {
-  const s = streamed ?? {};
-  const p = polled ?? {};
-  return Object.keys(p).length > Object.keys(s).length ? p : s;
-}
 
 export function useChat({
   activeAssistant,
@@ -177,13 +141,7 @@ export function useChat({
     // `updates` go through matchEventType, so root-graph todo/file patches still land.
     onUpdateEvent: (data, { namespace, mutate }) => {
       if (!isMainAgentNamespace(namespace)) return;
-      const patch: Partial<StateType> = {};
-      for (const nodeUpdate of Object.values(data ?? {})) {
-        if (!nodeUpdate || typeof nodeUpdate !== "object") continue;
-        const { todos, files } = nodeUpdate as Partial<StateType>;
-        if (Array.isArray(todos)) patch.todos = todos;
-        if (files && typeof files === "object") patch.files = files;
-      }
+      const patch = extractStatePatch(data);
       if (Object.keys(patch).length > 0) mutate(patch);
     },
   });
@@ -269,15 +227,7 @@ export function useChat({
       pendingStartRef.current = null;
       setRunStart(null);
       if (threadId) clearRunStart(threadId);
-      const msgs = stream.messages ?? [];
-      let lastAiId: string | undefined;
-      for (let i = msgs.length - 1; i >= 0; i -= 1) {
-        const m = msgs[i];
-        if (m.type === "ai" && m.id) {
-          lastAiId = m.id;
-          break;
-        }
-      }
+      const lastAiId = lastAiMessageId(stream.messages);
       if (lastAiId) {
         const durationMs = Math.max(0, Date.now() - started);
         setResponseDurationByAiMessageId((prev) => ({
@@ -367,103 +317,22 @@ export function useChat({
           "This thread belongs to another agent. Switch to that agent before sending."
         );
       }
-      let messageContent: Message["content"];
-      const documentAttachments: Attachment[] = [];
-      const inlineAttachments: Attachment[] = [];
-
-      // Separate document attachments (to files state) from inline attachments (to message)
-      if (attachments && attachments.length > 0) {
-        for (const attachment of attachments) {
-          if (attachment.isDocument) {
-            documentAttachments.push(attachment);
-          } else {
-            inlineAttachments.push(attachment);
-          }
-        }
-      }
-
-      // Images are sent inline so the model can SEE them (image_url block), but
-      // their bytes must ALSO be exposed as uploads/<name> files: an image_url
-      // block is vision-only and the model cannot re-encode it back to base64,
-      // so without this the agent can never forward a pasted screenshot to
-      // jira_add_attachment.
-      const imageAttachments = inlineAttachments.filter((a) =>
-        isImageFile(a.type, a.name)
+      const { messageContent, documentFiles } = buildHumanContent(
+        content,
+        attachments,
+        stream.values.files ?? {}
       );
 
-      // Build files map for state update (parsed documents + raw image bytes).
-      let documentFiles: Record<string, string> | null = null;
-      if (documentAttachments.length > 0 || imageAttachments.length > 0) {
-        const currentFiles = stream.values.files ?? {};
-        documentFiles = { ...currentFiles };
-        for (const doc of documentAttachments) {
-          documentFiles[`uploads/${doc.name}`] = doc.content;
-        }
-        for (const img of imageAttachments) {
-          documentFiles[`uploads/${img.name}`] = img.content;
-        }
-
-        // If thread exists, update state before sending message
-        if (threadId) {
-          setIsSubmittingAttachments(true);
-          try {
-            await client.threads.updateState(threadId, {
-              values: { files: documentFiles },
-            });
-          } finally {
-            setIsSubmittingAttachments(false);
-          }
-        }
-      }
-
-      const hasInlineAttachments = inlineAttachments.length > 0;
-      const hasDocumentAttachments = documentAttachments.length > 0;
-
-      if (hasInlineAttachments || hasDocumentAttachments) {
-        const contentBlocks: Array<{ type: "text"; text: string }> = [];
-
-        // Add user text if present
-        if (content.trim()) {
-          contentBlocks.push({ type: "text", text: content });
-        }
-
-        // Add inline attachment blocks (images, text files)
-        for (const attachment of inlineAttachments) {
-          if (isImageFile(attachment.type, attachment.name)) {
-            // Images go to uploads/<name> (above) and are referenced by path:
-            // the agent reads them with parse_document_file (server-side parse,
-            // images come back as a picture it can look at) or attaches them with
-            // jira_add_attachment_file. We do NOT send an image_url vision block —
-            // the agents' models are not guaranteed to be vision-capable (Azure
-            // returns a hard 400 "unsupported image" on non-vision deployments,
-            // breaking the run), so the image is read server-side instead.
-            contentBlocks.push({
-              type: "text",
-              text: `[Uploaded file: ${attachment.name} - use parse_document_file("uploads/${attachment.name}") to read it, or jira_add_attachment_file(issue_key, "uploads/${attachment.name}") to attach it to a Jira issue.]`,
-            });
-          } else {
-            const isBinary = !attachment.type.startsWith("text/");
-            const header = isBinary
-              ? `--- File: ${attachment.name} (base64) ---`
-              : `--- File: ${attachment.name} ---`;
-            contentBlocks.push({
-              type: "text",
-              text: `${header}\n${attachment.content}`,
-            });
-          }
-        }
-
-        // Add references for document attachments
-        for (const doc of documentAttachments) {
-          contentBlocks.push({
-            type: "text",
-            text: `[Uploaded file: ${doc.name} - use parse_document_file("uploads/${doc.name}") to extract its text.]`,
+      // If thread exists, persist uploads before sending the message.
+      if (documentFiles && threadId) {
+        setIsSubmittingAttachments(true);
+        try {
+          await client.threads.updateState(threadId, {
+            values: { files: documentFiles },
           });
+        } finally {
+          setIsSubmittingAttachments(false);
         }
-
-        messageContent = contentBlocks;
-      } else {
-        messageContent = content;
       }
 
       const newMessage: Message = {
@@ -485,13 +354,12 @@ export function useChat({
         optimisticValues: (prev) => ({
           messages: [...(prev.messages ?? []), newMessage],
         }),
-        streamMode: [...STREAM_MODE],
-        streamSubgraphs: true,
-        config: {
-          ...(activeAssistant?.config ?? {}),
-          recursion_limit: recursionLimit ?? 1000,
-        },
-        ...(runMetadata ? { metadata: runMetadata } : {}),
+        ...buildRunOptions({
+          config: activeAssistant?.config,
+          recursionLimit,
+          configMode: "recursion",
+          runMetadata,
+        }),
       });
       // Update thread list immediately when sending a message
       onHistoryRevalidate?.();
@@ -517,31 +385,22 @@ export function useChat({
     ) => {
       if (blockIfWrongAgent()) return;
       markRunStarted();
+      const runOptions = buildRunOptions({
+        config: activeAssistant?.config,
+        configMode: "passthrough",
+        runMetadata,
+        interrupt: checkpoint && isRerunningSubagent ? "after" : "before",
+      });
       if (checkpoint) {
         stream.submit(undefined, {
           ...(optimisticMessages
             ? { optimisticValues: { messages: optimisticMessages } }
             : {}),
-          streamMode: [...STREAM_MODE],
-          streamSubgraphs: true,
-          config: activeAssistant?.config,
-          checkpoint: checkpoint,
-          ...(runMetadata ? { metadata: runMetadata } : {}),
-          ...(isRerunningSubagent
-            ? { interruptAfter: ["tools"] }
-            : { interruptBefore: ["tools"] }),
+          ...runOptions,
+          checkpoint,
         });
       } else {
-        stream.submit(
-          { messages },
-          {
-            streamMode: [...STREAM_MODE],
-            streamSubgraphs: true,
-            config: activeAssistant?.config,
-            interruptBefore: ["tools"],
-            ...(runMetadata ? { metadata: runMetadata } : {}),
-          }
-        );
+        stream.submit({ messages }, runOptions);
       }
     },
     [
@@ -567,18 +426,16 @@ export function useChat({
     (hasTaskToolCall?: boolean) => {
       if (blockIfWrongAgent()) return;
       markRunStarted();
-      stream.submit(undefined, {
-        streamMode: [...STREAM_MODE],
-        streamSubgraphs: true,
-        config: {
-          ...(activeAssistant?.config || {}),
-          recursion_limit: recursionLimit ?? 1000,
-        },
-        ...(runMetadata ? { metadata: runMetadata } : {}),
-        ...(hasTaskToolCall
-          ? { interruptAfter: ["tools"] }
-          : { interruptBefore: ["tools"] }),
-      });
+      stream.submit(
+        undefined,
+        buildRunOptions({
+          config: activeAssistant?.config,
+          recursionLimit,
+          configMode: "recursion",
+          runMetadata,
+          interrupt: hasTaskToolCall ? "after" : "before",
+        })
+      );
       // Update thread list when continuing stream
       onHistoryRevalidate?.();
     },
@@ -599,9 +456,7 @@ export function useChat({
       markRunStarted();
       stream.submit(null, {
         command: { resume: response },
-        streamMode: [...STREAM_MODE],
-        streamSubgraphs: true,
-        ...(runMetadata ? { metadata: runMetadata } : {}),
+        ...buildRunOptions({ runMetadata }),
       });
       // Update thread list when resuming from interrupt
       onHistoryRevalidate?.();
@@ -618,8 +473,7 @@ export function useChat({
   const markCurrentThreadAsResolved = useCallback(() => {
     stream.submit(null, {
       command: { goto: "__end__", update: null },
-      streamMode: [...STREAM_MODE],
-      streamSubgraphs: true,
+      ...buildRunOptions({}),
     });
     // Update thread list when marking thread as resolved
     onHistoryRevalidate?.();
