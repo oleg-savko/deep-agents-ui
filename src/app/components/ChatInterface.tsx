@@ -26,7 +26,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { ChatMessage } from "@/app/components/ChatMessage";
-import { resolveUiToolCalls } from "@/app/utils/uiApps";
+import { buildTurnUiContext } from "@/app/utils/uiApps";
 import { RunStatusBar } from "@/app/components/RunStatusBar";
 import type {
   Attachment,
@@ -1495,40 +1495,11 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                   // the *same turn* (since the last human message). Text-only
                   // AI messages use this list to resolve `[[app]]` placeholders
                   // — using the whole-thread list instead would always pick the
-                  // first UI tool call of the conversation.
-                  const turnToolCallsByIndex: ToolCall[][] = [];
-                  let currentTurn: ToolCall[] = [];
-                  for (const m of processedMessages) {
-                    if (m.message.type === "human") {
-                      currentTurn = [];
-                      turnToolCallsByIndex.push([]);
-                      continue;
-                    }
-                    turnToolCallsByIndex.push(currentTurn);
-                    if (m.toolCalls.length > 0) {
-                      currentTurn = [...currentTurn, ...m.toolCalls];
-                    }
-                  }
-                  // One iframe per UI tool call. When both the tool message and
-                  // the final answer carry `[[app]]`, keep the later one.
-                  const hiddenAppIdsByIndex: Set<string>[] = [];
-                  const claimed = new Set<string>();
-                  for (let i = processedMessages.length - 1; i >= 0; i -= 1) {
-                    const m = processedMessages[i];
-                    if (m.message.type === "human") {
-                      claimed.clear();
-                      hiddenAppIdsByIndex[i] = new Set();
-                      continue;
-                    }
-                    const text = extractStringFromMessageContent(m.message);
-                    const refs = text.includes("[[app")
-                      ? resolveUiToolCalls(m.toolCalls, turnToolCallsByIndex[i])
-                      : [];
-                    hiddenAppIdsByIndex[i] = new Set(
-                      refs.filter((tc) => claimed.has(tc.id)).map((tc) => tc.id)
-                    );
-                    refs.forEach((tc) => claimed.add(tc.id));
-                  }
+                  // first UI tool call of the conversation. One iframe per UI
+                  // tool call: when both the tool message and the final answer
+                  // carry `[[app]]`, the later one wins.
+                  const { turnToolCallsByIndex, hiddenAppIdsByIndex } =
+                    buildTurnUiContext(processedMessages);
                   return processedMessages.map((data, index) => (
                     <ChatMessage
                       key={data.message.id}

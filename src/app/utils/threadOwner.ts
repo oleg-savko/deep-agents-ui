@@ -2,6 +2,12 @@ import type { Client, Thread } from "@langchain/langgraph-sdk";
 
 const cache = new Map<string, string | null>();
 const graphByAssistant = new Map<string, Promise<string | null>>();
+
+/** Test-only. Clears the in-memory graph cache between cases. */
+export function __resetThreadOwnerCache(): void {
+  cache.clear();
+  graphByAssistant.clear();
+}
 const LS = (id: string) => `thread-graph:${id}`;
 
 /** Server assistant ids are UUIDs; graph names (`chat`, `ba_agent`) are not. */
