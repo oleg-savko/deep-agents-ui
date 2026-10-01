@@ -18,11 +18,11 @@
       "value": "research",
       "label": "Research Agent",
       "description": "Orchestrates multi-step research workflows by delegating to specialized sub-agents. Synthesizes results from Confluence, Jira, and other sources into comprehensive reports.",
-      "defaultModel": "litellm:openai/gpt-5.4-mini",
+      "defaultModel": "litellm:openai/gpt-5.6-luna",
       "models": [
         {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
+          "value": "litellm:openai/gpt-5.6-luna",
+          "label": "gpt-5.6-luna"
         },
         {
           "value": "litellm:openai/bedrock-nova-2-lite",
@@ -35,16 +35,12 @@
         {
           "value": "litellm:openai/bedrock-claude-sonnet-4-6",
           "label": "bedrock-claude-sonnet-4-6"
-        },
-        {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
         }
       ],
       "subagentModelOverrideTemplates": {
-        "default-researcher": "litellm:openai/gpt-5.4-mini",
-        "ba-requirements-reviewer": "litellm:openai/gpt-5.4-mini",
-        "business-story-to-ba-specification-developer": "litellm:openai/gpt-5.4-mini"
+        "default-researcher": "litellm:openai/gpt-5.6-luna",
+        "ba-requirements-reviewer": "litellm:openai/gpt-5.6-luna",
+        "business-story-to-ba-specification-developer": "litellm:openai/gpt-5.6-luna"
       }
     },
     {
@@ -54,8 +50,8 @@
       "defaultModel": "litellm:deepseek/deepseek-flash",
       "models": [
         {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
+          "value": "litellm:openai/gpt-5.6-luna",
+          "label": "gpt-5.6-luna"
         },
         {
           "value": "litellm:openai/gpt-6-luna",
@@ -75,15 +71,11 @@
       "value": "sd_chat",
       "label": "SD Chat Agent",
       "description": "Jira Service Management assistant for triaging, classifying, and responding to service desk tickets. Helps structure and route support requests efficiently.",
-      "defaultModel": "litellm:openai/gpt-5.4-mini",
+      "defaultModel": "litellm:openai/gpt-5.6-luna",
       "models": [
         {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
-        },
-        {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
+          "value": "litellm:openai/gpt-5.6-luna",
+          "label": "gpt-5.6-luna"
         }
       ]
     },
@@ -92,12 +84,15 @@
       "label": "SD Incident Agent",
       "description": "Jira Service Management incident-intake assistant for guided ticket creation.",
       "exampleQuestions": [],
-      "aiGroups": ["/ai-group/admin", "/ai-group/sd_incident"],
-      "defaultModel": "litellm:openai/gpt-5.4-mini",
+      "aiGroups": [
+        "/ai-group/admin",
+        "/ai-group/sd_incident"
+      ],
+      "defaultModel": "litellm:openai/gpt-5.6-luna",
       "models": [
         {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
+          "value": "litellm:openai/gpt-5.6-luna",
+          "label": "gpt-5.6-luna"
         }
       ]
     },
@@ -105,11 +100,11 @@
       "value": "story_chat",
       "label": "Story Chat Agent",
       "description": "Business Analysis Assistant for creating high-quality Jira user stories. Transforms stakeholder requirements into well-structured stories with acceptance criteria.",
-      "defaultModel": "litellm:openai/gpt-5.4-mini",
+      "defaultModel": "litellm:openai/gpt-5.6-luna",
       "models": [
         {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
+          "value": "litellm:openai/gpt-5.6-luna",
+          "label": "gpt-5.6-luna"
         }
       ]
     },
@@ -120,8 +115,8 @@
       "defaultModel": "litellm:openai/bedrock-claude-sonnet-4-6",
       "models": [
         {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
+          "value": "litellm:openai/gpt-5.6-luna",
+          "label": "gpt-5.6-luna"
         },
         {
           "value": "litellm:openai/bedrock-nova-2-lite",
@@ -137,7 +132,7 @@
         }
       ],
       "subagentModelOverrideTemplates": {
-        "spec-researcher": "litellm:openai/gpt-5.4-mini",
+        "spec-researcher": "litellm:openai/gpt-5.6-luna",
         "qa-requirements-researcher": "litellm:openai/bedrock-claude-sonnet-4-6"
       }
     },
@@ -145,11 +140,11 @@
       "value": "spec_research",
       "label": "Spec Research Agent",
       "description": "Technical Business Analyst for investigating Jira issues, building retrieval evidence bundles, and producing normalized requirements corpora for development teams.",
-      "defaultModel": "litellm:openai/gpt-5.4-mini",
+      "defaultModel": "litellm:openai/gpt-5.6-luna",
       "models": [
         {
-          "value": "litellm:openai/gpt-5.4-mini",
-          "label": "gpt-5.4-mini"
+          "value": "litellm:openai/gpt-5.6-luna",
+          "label": "gpt-5.6-luna"
         }
       ]
     },
@@ -163,7 +158,9 @@
         "Invoke sprint-review for DEP_QA team sprint 42 in project MMMX\nPROJECT: MMMX\nSPRINT_NUM: 42\nDISCIPLINE: DEP_QA\nTask: sprint × discipline AI-review roll-up for the team lead and mentor."
       ],
       "defaultModel": "litellm:openai/gpt-6-luna",
-      "aiGroups": ["/ai-group/admin"],
+      "aiGroups": [
+        "/ai-group/admin"
+      ],
       "models": [
         {
           "value": "litellm:openai/gpt-6-sol",
@@ -197,7 +194,10 @@
         "Estimate task MMMX-1234 — both backend and frontend, and post the plan to the ticket"
       ],
       "defaultModel": "litellm:openai/gpt-6-luna",
-      "aiGroups": ["/ai-group/admin", "/ai-group/it"],
+      "aiGroups": [
+        "/ai-group/admin",
+        "/ai-group/it"
+      ],
       "models": [
         {
           "value": "litellm:openai/gpt-6-sol",
