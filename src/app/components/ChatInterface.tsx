@@ -408,6 +408,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       responseDurationByAiMessageId,
       isSubmittingAttachments,
       runStartedAt,
+      runId,
       streamFailure,
       reportFailure,
       clearFailure,
@@ -1954,6 +1955,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
               ) : isLoading ? (
                 <RunStatusBar
                   runStartedAt={runStartedAt}
+                  runId={runId}
                   activity={displayedActivity ?? "Thinking…"}
                   threadId={threadId}
                 />

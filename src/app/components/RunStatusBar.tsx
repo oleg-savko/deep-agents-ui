@@ -7,10 +7,16 @@ const ACTIVITY_TIMER_THRESHOLD_MS = 30_000;
 
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
+  const sec = seconds.toString().padStart(2, "0");
 
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, "0")}:${sec}`;
+  }
+
+  return `${minutes}:${sec}`;
 }
 
 const activityKey = (threadId: string) => `activity-since:${threadId}`;
@@ -19,22 +25,30 @@ interface StoredActivity {
   label: string;
   at: number;
   runStartedAt: number;
+  runId: string | null;
 }
 
 function readActivity(
   threadId: string,
   label: string,
-  runStartedAt: number
+  runStartedAt: number,
+  runId: string | null
 ): number | null {
   try {
     const raw = sessionStorage.getItem(activityKey(threadId));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as StoredActivity;
     if (
-      parsed.label === label &&
-      parsed.runStartedAt === runStartedAt &&
-      Number.isFinite(parsed.at)
+      parsed.label !== label ||
+      parsed.runStartedAt !== runStartedAt ||
+      !Number.isFinite(parsed.at)
     ) {
+      return null;
+    }
+    if (parsed.runId === runId) return parsed.at;
+    // Run id arrives a moment after this step's clock was stored.
+    // Legacy entries have no `runId` field and must not be reused.
+    if ("runId" in parsed && parsed.runId == null && runId != null) {
       return parsed.at;
     }
   } catch {
@@ -53,12 +67,14 @@ function writeActivity(threadId: string, stored: StoredActivity): void {
 
 interface RunStatusBarProps {
   runStartedAt: number | null;
+  runId: string | null;
   activity: string | null;
   threadId: string | null;
 }
 
 export function RunStatusBar({
   runStartedAt,
+  runId,
   activity,
   threadId,
 }: RunStatusBarProps) {
@@ -80,15 +96,21 @@ export function RunStatusBar({
       setActivitySince(Date.now());
       return;
     }
-    const stored = readActivity(threadId, activity, runStartedAt);
+    const stored = readActivity(threadId, activity, runStartedAt, runId);
     if (stored != null) {
       setActivitySince(stored);
+      writeActivity(threadId, {
+        label: activity,
+        at: stored,
+        runStartedAt,
+        runId,
+      });
       return;
     }
     const at = Date.now();
-    writeActivity(threadId, { label: activity, at, runStartedAt });
+    writeActivity(threadId, { label: activity, at, runStartedAt, runId });
     setActivitySince(at);
-  }, [activity, threadId, runStartedAt]);
+  }, [activity, threadId, runStartedAt, runId]);
 
   const now = Date.now();
   const elapsed = runStartedAt != null ? now - runStartedAt : 0;

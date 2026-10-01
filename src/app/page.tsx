@@ -5,6 +5,7 @@ import { useQueryState } from "nuqs";
 import { Client } from "@langchain/langgraph-sdk";
 import { useAuthHeader } from "@/providers/AuthHeaderProvider";
 import { getConfig, saveConfig, StandaloneConfig } from "@/lib/config";
+import { deploymentMark } from "@/lib/deploymentMark";
 import { buildSubagentTemplatesByAssistantId } from "@/lib/subagentTemplates";
 import { ConfigDialog } from "@/app/components/ConfigDialog";
 import { Button } from "@/components/ui/button";
@@ -744,6 +745,7 @@ function HomePageContent() {
   // just created already has an owner, so this does not stick.
   const runsBlocked = ownerPending || ownerMismatch;
 
+  const mark = deploymentMark(config.deploymentUrl);
   const defaultModelName = "litellm:openai/gpt-5-mini";
   const assistant: Assistant = {
     assistant_id: config.assistantId,
@@ -808,10 +810,26 @@ function HomePageContent() {
         deploymentUrl={config.deploymentUrl}
         apiKey={langsmithApiKey}
       >
-        <div className="flex h-screen flex-col">
+        <div
+          data-env={mark.env}
+          className="deployment-shell flex h-screen flex-col"
+        >
           <header className="flex h-16 items-center justify-between border-b border-border px-6">
-            <div className="flex items-center gap-4">
-              <h1 className="text-xl font-semibold">Deep Agent UI</h1>
+            <div className="flex shrink-0 items-center gap-3">
+              <h1 className="whitespace-nowrap text-xl font-semibold">
+                Deep Agent UI
+              </h1>
+              <Tooltip delayDuration={200}>
+                <TooltipTrigger asChild>
+                  <span className="deployment-chip inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-medium tracking-wide">
+                    <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                    {mark.label}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  {config.deploymentUrl}
+                </TooltipContent>
+              </Tooltip>
               {!sidebar && (
                 <Button
                   variant="outline"
