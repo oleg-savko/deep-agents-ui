@@ -26,6 +26,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { ChatMessage } from "@/app/components/ChatMessage";
+import { resolveUiToolCalls } from "@/app/utils/uiApps";
 import { RunStatusBar } from "@/app/components/RunStatusBar";
 import type {
   Attachment,
@@ -91,7 +92,7 @@ interface ChatInterfaceProps {
   isAttachmentsAllowed?: boolean;
   /** Prefilled into an empty input on a fresh thread — e.g. from a link naming a Story. */
   initialInput?: string;
-  /** Thread owner is unknown or belongs to another agent — don't send. */
+  /** Thread belongs to another agent — don't send. */
   inputLocked?: boolean;
 }
 
@@ -1508,12 +1509,33 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                       currentTurn = [...currentTurn, ...m.toolCalls];
                     }
                   }
+                  // One iframe per UI tool call. When both the tool message and
+                  // the final answer carry `[[app]]`, keep the later one.
+                  const hiddenAppIdsByIndex: Set<string>[] = [];
+                  const claimed = new Set<string>();
+                  for (let i = processedMessages.length - 1; i >= 0; i -= 1) {
+                    const m = processedMessages[i];
+                    if (m.message.type === "human") {
+                      claimed.clear();
+                      hiddenAppIdsByIndex[i] = new Set();
+                      continue;
+                    }
+                    const text = extractStringFromMessageContent(m.message);
+                    const refs = text.includes("[[app")
+                      ? resolveUiToolCalls(m.toolCalls, turnToolCallsByIndex[i])
+                      : [];
+                    hiddenAppIdsByIndex[i] = new Set(
+                      refs.filter((tc) => claimed.has(tc.id)).map((tc) => tc.id)
+                    );
+                    refs.forEach((tc) => claimed.add(tc.id));
+                  }
                   return processedMessages.map((data, index) => (
                     <ChatMessage
                       key={data.message.id}
                       message={data.message}
                       toolCalls={data.toolCalls}
                       turnToolCalls={turnToolCallsByIndex[index]}
+                      hiddenAppIds={hiddenAppIdsByIndex[index]}
                       subAgentRunsByTaskId={subAgentRunsByTaskId}
                       onRestartFromAIMessage={handleRestartFromAIMessage}
                       onRestartFromSubTask={handleRestartFromSubTask}

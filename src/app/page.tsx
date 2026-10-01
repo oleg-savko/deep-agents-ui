@@ -44,7 +44,7 @@ import { AccessNotice, type AccessInfo } from "@/app/components/AccessNotice";
 import { ConnectivityBanner } from "@/app/components/ConnectivityBanner";
 import { useAgentHealth, type AgentHealth } from "@/app/hooks/useAgentHealth";
 import { toast } from "sonner";
-import { resolveThreadOwner } from "@/app/utils/threadOwner";
+import { isAssistantUuid, resolveThreadGraph } from "@/app/utils/threadOwner";
 import {
   Dialog,
   DialogContent,
@@ -86,6 +86,8 @@ function HomePageContent() {
   // Tracks the thread we've already reconciled the model for, so opening a
   // thread only triggers one getState fetch (and never fights a manual switch).
   const modelRestoredForThreadRef = useRef<string | null>(null);
+  const configRef = useRef(config);
+  configRef.current = config;
   // Updated inside the model-reconcile effect. The thread-restore path sets it
   // before changing assistant so that effect does not treat a restore as a user
   // switch and overwrite the thread's model with the assistant default.
@@ -349,13 +351,20 @@ function HomePageContent() {
   // model is currently selected — the same cross-provider mismatch that breaks
   // runs (e.g. deepseek/gpt reject dangling `tool_calls`). Best-effort: on any
   // failure or missing metadata we leave the current model untouched.
+  //
+  // `config` itself is not a dependency: writing the restored model would
+  // cancel the in-flight read. A cancelled read clears the guard so the next
+  // run (token refresh, deployment url) tries again.
   useEffect(() => {
-    if (!config || !threadId || !authReady) return;
+    const deploymentUrl = config?.deploymentUrl;
+    if (!deploymentUrl || !threadId || !authReady) return;
     if (modelRestoredForThreadRef.current === threadId) return;
+    const snapshot = configRef.current;
+    if (!snapshot) return;
     modelRestoredForThreadRef.current = threadId;
 
-    const snapshot = config;
     let cancelled = false;
+    let finished = false;
 
     (async () => {
       try {
@@ -366,7 +375,7 @@ function HomePageContent() {
         if (authorization) headers["Authorization"] = authorization;
 
         const client = new Client({
-          apiUrl: snapshot.deploymentUrl,
+          apiUrl: deploymentUrl,
           defaultHeaders: headers,
         });
         const state = await client.threads.getState(threadId);
@@ -390,72 +399,22 @@ function HomePageContent() {
           typeof meta.LLM_MODEL === "string" ? meta.LLM_MODEL : null;
         const threadProject =
           typeof meta.PROJECT === "string" ? meta.PROJECT : null;
-
-        // Optional: only when the checkpoint itself names the graph. LangGraph
-        // does not always write assistant_id/graph_id into checkpoint metadata;
-        // if neither field is present this is a no-op.
-        let rawAssistant =
-          (typeof meta.assistant_id === "string" && meta.assistant_id) ||
-          (typeof meta.graph_id === "string" && meta.graph_id) ||
-          null;
-        // Checkpoint metadata often has no assistant. The run that created the
-        // thread does, and so does thread metadata once we've tagged it.
-        if (!rawAssistant) {
-          try {
-            const thread = await client.threads.get(threadId);
-            if (cancelled) return;
-            rawAssistant = await resolveThreadOwner(client, {
-              thread_id: threadId,
-              metadata: thread.metadata,
-            });
-          } catch {
-            rawAssistant = null;
-          }
-          if (cancelled) return;
-        }
-        const knownAssistants = configAssistantsRef.current;
-        const threadAssistant =
-          rawAssistant && knownAssistants.some((a) => a.value === rawAssistant)
-            ? rawAssistant
-            : null;
-        if (rawAssistant && !threadAssistant && knownAssistants.length === 0) {
-          pendingAssistantMetaRef.current = {
-            threadId,
-            assistantId: rawAssistant,
-          };
-        } else if (rawAssistant && !threadAssistant) {
-          pendingAssistantMetaRef.current = null;
-          const label =
-            knownAssistants.find((a) => a.value === rawAssistant)?.label ??
-            rawAssistant;
-          toast.error(`Тред принадлежит агенту ${label}, к нему нет доступа`);
-          setResolvedOwner(null);
-          setThreadId(null);
-          return;
-        } else {
-          pendingAssistantMetaRef.current = null;
-          setResolvedOwner({ threadId, owner: threadAssistant });
-        }
-        const assistantFromThread =
-          !!threadAssistant && threadAssistant !== snapshot.assistantId;
         const modelFromThread =
           !!threadModel && threadModel !== snapshot.llmModelName;
 
-        if (!modelFromThread && !assistantFromThread) return;
-
-        const next: StandaloneConfig = { ...snapshot };
         if (modelFromThread && threadModel) {
-          next.llmModelName = threadModel;
-          if (threadProject) next.project = threadProject;
-        }
-        if (assistantFromThread && threadAssistant) {
-          next.assistantId = threadAssistant;
-          prevAssistantRef.current = threadAssistant;
-          setAssistantId(threadAssistant);
-        }
-        saveConfig(next);
-        setConfig(next);
-        if (modelFromThread && threadModel) {
+          // Merge into the latest config so an assistant switch that landed
+          // while this request was in flight is not overwritten.
+          setConfig((prev) => {
+            if (!prev) return prev;
+            const next: StandaloneConfig = {
+              ...prev,
+              llmModelName: threadModel,
+            };
+            if (threadProject) next.project = threadProject;
+            saveConfig(next);
+            return next;
+          });
           toast.info(
             `Using ${threadModel.replace(
               /^litellm:/,
@@ -463,13 +422,119 @@ function HomePageContent() {
             )} — the model this conversation was created with.`
           );
         }
+        finished = true;
       } catch {
-        // Best-effort restore: a missing/failed state read leaves the current
-        // model in place. Unlock the composer rather than pinning it on a
-        // lookup that will not retry by itself.
+        if (cancelled) return;
         modelRestoredForThreadRef.current = null;
-        setResolvedOwner({ threadId, owner: null });
       }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (!finished) modelRestoredForThreadRef.current = null;
+    };
+  }, [
+    threadId,
+    authReady,
+    authorization,
+    langsmithApiKey,
+    config?.deploymentUrl,
+  ]);
+
+  // Which graph owns this thread. Kept apart from the model restore: that
+  // effect records the thread id before the request returns, so a cancelled
+  // lookup never retried and `resolvedOwner` stayed unset. The composer stays
+  // locked until this settles. A failed request does not settle, so a later
+  // token or url change runs it again.
+  useEffect(() => {
+    const deploymentUrl = config?.deploymentUrl;
+    if (!deploymentUrl || !threadId || !authReady) return;
+    if (resolvedOwner?.threadId === threadId) return;
+
+    let cancelled = false;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (langsmithApiKey) headers["X-Api-Key"] = langsmithApiKey;
+    if (authorization) headers["Authorization"] = authorization;
+    const client = new Client({
+      apiUrl: deploymentUrl,
+      defaultHeaders: headers,
+    });
+
+    const settle = (raw: string | null) => {
+      if (cancelled) return;
+      const known = configAssistantsRef.current;
+      // Checkpoint read can finish before /api/config returns the allow-list.
+      if (raw && known.length === 0 && !isAssistantUuid(raw)) {
+        pendingAssistantMetaRef.current = { threadId, assistantId: raw };
+        return;
+      }
+      if (raw && !isAssistantUuid(raw) && !known.some((a) => a.value === raw)) {
+        pendingAssistantMetaRef.current = null;
+        toast.error(`Тред принадлежит агенту ${raw}, к нему нет доступа`);
+        setResolvedOwner(null);
+        setThreadId(null);
+        return;
+      }
+      // Unknown id (UUID we could not map, or no runs): open on the current
+      // agent instead of locking the composer.
+      const owner = raw && known.some((a) => a.value === raw) ? raw : null;
+      pendingAssistantMetaRef.current = null;
+      setResolvedOwner({ threadId, owner });
+      if (!owner) return;
+      const current = configRef.current;
+      if (!current || owner === current.assistantId) return;
+      // Pre-set so the model-reconcile effect does not treat this as a user
+      // switch and replace the thread's model with the assistant default.
+      prevAssistantRef.current = owner;
+      setAssistantId(owner);
+      setConfig((prev) => {
+        if (!prev || prev.assistantId === owner) return prev;
+        const next = { ...prev, assistantId: owner };
+        saveConfig(next);
+        return next;
+      });
+    };
+
+    (async () => {
+      let raw: string | null = null;
+      try {
+        const state = await client.threads.getState(threadId);
+        if (cancelled) return;
+        const meta = (state?.metadata ?? {}) as Record<string, unknown>;
+        // Checkpoint `assistant_id` is the server UUID, not the graph name.
+        const fromCheckpoint =
+          typeof meta.graph_id === "string" ? meta.graph_id : null;
+        if (fromCheckpoint && !isAssistantUuid(fromCheckpoint)) {
+          const known = configAssistantsRef.current;
+          if (
+            known.length === 0 ||
+            known.some((a) => a.value === fromCheckpoint)
+          ) {
+            raw = fromCheckpoint;
+          }
+        }
+      } catch {
+        // Don't settle: a 401 before the iframe token arrives would pin
+        // owner=null and never recheck. The effect retries when auth changes.
+        return;
+      }
+      if (cancelled) return;
+      if (!raw) {
+        try {
+          const thread = await client.threads.get(threadId);
+          if (cancelled) return;
+          raw = await resolveThreadGraph(client, {
+            thread_id: threadId,
+            metadata: thread.metadata,
+          });
+        } catch {
+          return;
+        }
+      }
+      if (cancelled) return;
+      settle(raw);
     })();
 
     return () => {
@@ -480,25 +545,30 @@ function HomePageContent() {
     authReady,
     authorization,
     langsmithApiKey,
-    config,
+    config?.deploymentUrl,
+    resolvedOwner,
     setAssistantId,
     setThreadId,
   ]);
 
-  // The checkpoint read can finish before /api/config returns the assistant
-  // list. Retry the assistant restore once that list exists; unknown ids are
-  // ignored so a missing or foreign graph_id never switches the agent.
+  // The owner lookup can finish before /api/config returns the assistant
+  // list. Retry once that list exists; unknown ids are ignored so a missing
+  // or foreign graph_id never switches the agent.
   useEffect(() => {
     const pending = pendingAssistantMetaRef.current;
     if (!pending || pending.threadId !== threadId || !config) return;
     if (configAssistants.length === 0) return;
     pendingAssistantMetaRef.current = null;
     if (!configAssistants.some((a) => a.value === pending.assistantId)) {
-      toast.error(
-        `Тред принадлежит агенту ${pending.assistantId}, к нему нет доступа`
-      );
-      setResolvedOwner(null);
-      setThreadId(null);
+      if (!isAssistantUuid(pending.assistantId)) {
+        toast.error(
+          `Тред принадлежит агенту ${pending.assistantId}, к нему нет доступа`
+        );
+        setResolvedOwner(null);
+        setThreadId(null);
+        return;
+      }
+      setResolvedOwner({ threadId: pending.threadId, owner: null });
       return;
     }
     setResolvedOwner({
@@ -507,10 +577,13 @@ function HomePageContent() {
     });
     if (pending.assistantId === config.assistantId) return;
     prevAssistantRef.current = pending.assistantId;
-    const next = { ...config, assistantId: pending.assistantId };
-    saveConfig(next);
-    setConfig(next);
     setAssistantId(pending.assistantId);
+    setConfig((prev) => {
+      if (!prev || prev.assistantId === pending.assistantId) return prev;
+      const next = { ...prev, assistantId: pending.assistantId };
+      saveConfig(next);
+      return next;
+    });
   }, [threadId, config, configAssistants, setAssistantId, setThreadId]);
 
   // Effective subagent models sent with each run. Never read from persisted
@@ -665,6 +738,10 @@ function HomePageContent() {
   const threadOwner =
     resolvedOwner?.threadId === threadId ? resolvedOwner.owner : null;
   const ownerMismatch = !!threadOwner && threadOwner !== config.assistantId;
+  // Pending blocks too: a deep link can name another agent's thread, and a
+  // send before the lookup returns would run it on the current graph. The
+  // lookup retries after a cancel, and a thread opened from the sidebar or
+  // just created already has an owner, so this does not stick.
   const runsBlocked = ownerPending || ownerMismatch;
 
   const defaultModelName = "litellm:openai/gpt-5-mini";
@@ -989,10 +1066,10 @@ function HomePageContent() {
                     <ThreadList
                       assistantLabels={assistantLabels}
                       onThreadSelect={async (id, owner) => {
-                        if (
-                          owner &&
-                          !configAssistants.some((a) => a.value === owner)
-                        ) {
+                        const known =
+                          !!owner &&
+                          configAssistants.some((a) => a.value === owner);
+                        if (owner && !known && !isAssistantUuid(owner)) {
                           toast.error(
                             `Тред принадлежит агенту ${
                               assistantLabels[owner] ?? owner
@@ -1000,14 +1077,17 @@ function HomePageContent() {
                           );
                           return;
                         }
-                        if (owner && owner !== config.assistantId) {
+                        if (known && owner !== config.assistantId) {
                           prevAssistantRef.current = owner;
                           applyConfig(
                             { ...config, assistantId: owner, llmModelName: "" },
                             false
                           );
                         }
-                        setResolvedOwner({ threadId: id, owner });
+                        setResolvedOwner({
+                          threadId: id,
+                          owner: known ? owner : null,
+                        });
                         await setThreadId(id);
                       }}
                       onMutateReady={(fn) => setMutateThreads(() => fn)}
@@ -1027,6 +1107,12 @@ function HomePageContent() {
                 <ChatProvider
                   activeAssistant={assistant}
                   onHistoryRevalidate={() => mutateThreads?.()}
+                  onThreadCreated={(id) =>
+                    setResolvedOwner({
+                      threadId: id,
+                      owner: config.assistantId,
+                    })
+                  }
                   recursionLimit={assistantRecursionLimits[config.assistantId]}
                   runsBlocked={runsBlocked}
                 >

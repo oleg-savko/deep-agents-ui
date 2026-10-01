@@ -5,7 +5,7 @@ import type { Thread } from "@langchain/langgraph-sdk";
 import { Client } from "@langchain/langgraph-sdk";
 import { getConfig } from "@/lib/config";
 import { useAuthHeader } from "@/providers/AuthHeaderProvider";
-import { resolveThreadOwner } from "@/app/utils/threadOwner";
+import { graphFromMeta, resolveThreadGraph } from "@/app/utils/threadOwner";
 
 export interface ThreadItem {
   id: string;
@@ -18,11 +18,6 @@ export interface ThreadItem {
 }
 
 export type ThreadScope = "agent" | "all";
-
-function ownerFromMeta(metadata: Thread["metadata"]): string | null {
-  const raw = metadata?.assistant_id ?? metadata?.graph_id;
-  return typeof raw === "string" && raw ? raw : null;
-}
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -110,11 +105,10 @@ export function useThreads(props: {
         sortBy: "updated_at",
         sortOrder: "desc",
         status,
-        // Server-side filter keeps pagination honest. Untagged legacy threads
-        // stay out of "this agent" until a view (or the backfill script) writes
-        // assistant_id onto them.
+        // Filter on the graph name. `assistant_id` here is a server UUID and
+        // matching the sidebar's `chat` / `ba_agent` against it returns nothing.
         ...(pageScope === "agent" && assistantId
-          ? { metadata: { assistant_id: assistantId } }
+          ? { metadata: { graph_id: assistantId } }
           : {}),
       });
 
@@ -169,7 +163,7 @@ export function useThreads(props: {
           status: thread.status,
           title,
           description,
-          assistantId: ownerFromMeta(thread.metadata),
+          assistantId: graphFromMeta(thread.metadata),
         };
       });
 
@@ -177,7 +171,7 @@ export function useThreads(props: {
         items.map(async (item, index) => {
           if (item.assistantId) return;
           try {
-            item.assistantId = await resolveThreadOwner(client, threads[index]);
+            item.assistantId = await resolveThreadGraph(client, threads[index]);
           } catch {
             item.assistantId = null;
           }

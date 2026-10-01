@@ -12,6 +12,7 @@ interface ChatProviderProps {
   thread?: UseStreamThread<StateType>;
   recursionLimit?: number;
   runsBlocked?: boolean;
+  onThreadCreated?: (threadId: string) => void;
 }
 
 export function ChatProvider({
@@ -21,6 +22,7 @@ export function ChatProvider({
   thread,
   recursionLimit,
   runsBlocked,
+  onThreadCreated,
 }: ChatProviderProps) {
   const chat = useChat({
     activeAssistant,
@@ -28,6 +30,7 @@ export function ChatProvider({
     thread,
     recursionLimit,
     runsBlocked,
+    onThreadCreated,
   });
   return <ChatContext.Provider value={chat}>{children}</ChatContext.Provider>;
 }
