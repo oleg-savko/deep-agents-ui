@@ -92,7 +92,7 @@ interface ChatInterfaceProps {
   isAttachmentsAllowed?: boolean;
   /** Prefilled into an empty input on a fresh thread — e.g. from a link naming a Story. */
   initialInput?: string;
-  /** Thread owner is unknown or belongs to another agent — don't send. */
+  /** Thread belongs to another agent — don't send. */
   inputLocked?: boolean;
 }
 

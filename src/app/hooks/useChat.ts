@@ -102,6 +102,7 @@ export function useChat({
   thread,
   recursionLimit,
   runsBlocked = false,
+  onThreadCreated,
 }: {
   activeAssistant: Assistant | null;
   onHistoryRevalidate?: () => void;
@@ -110,11 +111,14 @@ export function useChat({
    * Agents that work rather than chat need far more steps than a conversation does. */
   recursionLimit?: number;
   /**
-   * True while this thread's owning assistant is unknown or differs from
-   * `activeAssistant`. Submits are refused so a chat thread can't be replayed
-   * on another agent's graph.
+   * True while this thread's owner is still unknown or belongs to another
+   * agent. Submits are refused so a chat thread can't be replayed on another
+   * agent's graph. A brand-new thread is owned by the agent that created it,
+   * so the first message is not blocked.
    */
   runsBlocked?: boolean;
+  /** Fires once, with the id of the thread created by the first message. */
+  onThreadCreated?: (threadId: string) => void;
 }) {
   const [threadId, setThreadId] = useQueryState("threadId");
   const client = useClient();
@@ -129,6 +133,8 @@ export function useChat({
   const stoppedAtRef = useRef(0);
   const onHistoryRevalidateRef = useRef(onHistoryRevalidate);
   onHistoryRevalidateRef.current = onHistoryRevalidate;
+  const onThreadCreatedRef = useRef(onThreadCreated);
+  onThreadCreatedRef.current = onThreadCreated;
   const runsBlockedRef = useRef(runsBlocked);
   runsBlockedRef.current = runsBlocked;
   /** Start of a run that may not have a thread id yet (first message). */
@@ -157,9 +163,12 @@ export function useChat({
     },
     onCreated: (run) => {
       const pending = pendingStartRef.current;
+      // Only the first message of a chat has no thread id yet. Later runs on
+      // the same thread must not reassign its owner.
       if (pending && pending.threadId == null) {
         pending.threadId = run.thread_id;
         writeRunStart(run.thread_id, pending.at);
+        onThreadCreatedRef.current?.(run.thread_id);
       }
       onHistoryRevalidateRef.current?.();
     },
@@ -233,10 +242,13 @@ export function useChat({
     prevIsLoadingRef.current = false;
 
     const pending = pendingStartRef.current;
+    // The SDK reports a new thread id (onThreadId) before the run exists, so
+    // this branch, not onCreated, is normally the first to see it.
     if (pending && pending.threadId == null && threadId) {
       pending.threadId = threadId;
       writeRunStart(threadId, pending.at);
       setRunStart(pending.at);
+      onThreadCreatedRef.current?.(threadId);
       return;
     }
     if (pending && threadId && pending.threadId === threadId) {
