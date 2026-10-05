@@ -106,7 +106,7 @@ function LoadingState() {
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center p-8 text-center">
-      <MessageSquare className="mb-2 h-12 w-12 text-gray-300" />
+      <MessageSquare className="mb-2 h-12 w-12 text-muted-foreground/50" />
       <p className="text-sm text-muted-foreground">No threads found</p>
     </div>
   );
@@ -220,9 +220,11 @@ export function ThreadList({
   return (
     <div className="absolute inset-0 flex flex-col">
       {/* Header with title, filter, and close button */}
-      <div className="grid flex-shrink-0 grid-cols-[1fr_auto] items-center gap-3 border-b border-border p-4">
-        <h2 className="text-lg font-semibold tracking-tight">Threads</h2>
-        <div className="flex items-center gap-2">
+      <div className="flex min-w-0 flex-shrink-0 items-center gap-2 border-b border-border px-4 py-3">
+        <h2 className="shrink-0 text-lg font-semibold tracking-tight">
+          Threads
+        </h2>
+        <div className="ml-auto flex min-w-0 flex-1 items-center gap-1.5">
           <Select
             value={scope}
             onValueChange={(v) => {
@@ -231,7 +233,7 @@ export function ThreadList({
               localStorage.setItem(SCOPE_KEY, next);
             }}
           >
-            <SelectTrigger className="w-fit">
+            <SelectTrigger className="h-8 w-0 min-w-0 flex-1 px-2">
               <SelectValue />
             </SelectTrigger>
             <SelectContent align="end">
@@ -243,7 +245,7 @@ export function ThreadList({
             value={statusFilter}
             onValueChange={(v) => setStatusFilter(v as StatusFilter)}
           >
-            <SelectTrigger className="w-fit">
+            <SelectTrigger className="h-8 w-0 min-w-0 flex-1 px-2">
               <SelectValue />
             </SelectTrigger>
             <SelectContent align="end">

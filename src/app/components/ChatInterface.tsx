@@ -6,6 +6,7 @@ import React, {
   useCallback,
   useMemo,
   useEffect,
+  useLayoutEffect,
   FormEvent,
   Fragment,
 } from "react";
@@ -313,6 +314,8 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     const isMountedRef = useRef(true);
 
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+    const manualInputHeightRef = useRef<number | null>(null);
+    const resizeTextareaRef = useRef<() => void>(() => {});
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [attachments, setAttachments] = useState<Attachment[]>([]);
     const [uploadProgress, setUploadProgress] = useState<
@@ -369,6 +372,51 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       },
       [inputCallbackRef]
     );
+
+    const resizeTextarea = useCallback(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+
+      const maxHeight = Math.round(window.innerHeight * 0.4);
+      el.style.height = "auto";
+      const contentHeight = el.scrollHeight;
+      const next = Math.min(
+        maxHeight,
+        Math.max(contentHeight, manualInputHeightRef.current ?? 0)
+      );
+      el.style.height = `${next}px`;
+      el.style.overflowY = contentHeight > maxHeight ? "auto" : "hidden";
+    }, []);
+    resizeTextareaRef.current = resizeTextarea;
+
+    useLayoutEffect(() => {
+      if (!input) manualInputHeightRef.current = null;
+      resizeTextarea();
+    }, [input, resizeTextarea]);
+
+    useEffect(() => {
+      window.addEventListener("resize", resizeTextarea);
+      return () => window.removeEventListener("resize", resizeTextarea);
+    }, [resizeTextarea]);
+
+    const setTextareaRef = useCallback((el: HTMLTextAreaElement | null) => {
+      textareaRef.current = el;
+      if (!el) return;
+
+      let lastWidth = el.clientWidth;
+      const observer = new ResizeObserver(() => {
+        if (el.clientWidth === lastWidth) return;
+        lastWidth = el.clientWidth;
+        resizeTextareaRef.current();
+      });
+      observer.observe(el);
+      resizeTextareaRef.current();
+
+      return () => {
+        observer.disconnect();
+        if (textareaRef.current === el) textareaRef.current = null;
+      };
+    }, []);
 
     // Once per value: a link's prompt is offered on a fresh thread and never overwrites
     // what the user has typed.
@@ -673,13 +721,8 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       }
 
       if (kind === "connectivity") {
-        toast.error(VPN_HINT, { id: "agent-offline", duration: 8000 });
         setRunError({ title: "Connection lost", message: VPN_HINT });
       } else {
-        toast.error(`The run failed: ${message}`, {
-          id: "agent-run-error",
-          duration: 10000,
-        });
         setRunError({ title: "The run failed", message });
       }
       restoreSubmittedText();
@@ -1302,13 +1345,13 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
 
     const toggle = !hideInternalToggle && (
       <div className="flex w-full justify-center">
-        <div className="flex h-[24px] w-[134px] items-center gap-0 overflow-hidden rounded border border-[#D1D1D6] bg-white p-[3px] text-[12px] shadow-sm">
+        <div className="flex h-[24px] w-[134px] items-center gap-0 overflow-hidden rounded border border-border bg-card p-[3px] text-[12px] shadow-sm">
           <button
             type="button"
             onClick={() => setView("chat")}
             className={cn(
-              "flex h-full flex-1 items-center justify-center truncate rounded p-[3px]",
-              { "bg-[#F4F3FF]": !workflowView }
+              "flex h-full flex-1 items-center justify-center truncate rounded p-[3px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+              !workflowView ? "bg-accent" : "hover:bg-accent/60"
             )}
           >
             Chat
@@ -1317,8 +1360,8 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
             type="button"
             onClick={() => setView("workflow")}
             className={cn(
-              "flex h-full flex-1 items-center justify-center truncate rounded p-[3px]",
-              { "bg-[#F4F3FF]": workflowView }
+              "flex h-full flex-1 items-center justify-center truncate rounded p-[3px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+              workflowView ? "bg-accent" : "hover:bg-accent/60"
             )}
           >
             Workflow
@@ -1377,41 +1420,44 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       const el = textareaRef.current;
       if (!el) return;
 
+      e.preventDefault();
       const target = e.currentTarget;
       target.setPointerCapture(e.pointerId);
 
       const startY = e.clientY;
-      const startHeight = el.offsetHeight || 0;
+      const startHeight = el.offsetHeight;
 
       const onMove = (moveEvent: PointerEvent) => {
-        const delta = startY - moveEvent.clientY;
-        const minHeight = 32; // px
-        const maxHeight = 240; // px (~6+ lines)
-        const next = Math.min(
-          maxHeight,
-          Math.max(minHeight, startHeight + delta)
+        manualInputHeightRef.current = Math.max(
+          32,
+          startHeight + startY - moveEvent.clientY
         );
-        el.style.height = `${next}px`;
+        resizeTextarea();
       };
 
       const onUp = () => {
         target.releasePointerCapture(e.pointerId);
         target.removeEventListener("pointermove", onMove);
         target.removeEventListener("pointerup", onUp);
+        target.removeEventListener("pointercancel", onUp);
       };
 
       target.addEventListener("pointermove", onMove);
       target.addEventListener("pointerup", onUp);
+      target.addEventListener("pointercancel", onUp);
     };
 
     return (
       <div className="flex flex-1 flex-col overflow-hidden">
         <div
-          className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
+          className="flex flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-contain"
           ref={scrollRef}
         >
           <div
-            className="mx-auto w-full max-w-[1024px] px-6 pb-6 pt-4"
+            className={cn(
+              "mx-auto w-full max-w-[1024px] px-6 pb-6 pt-4",
+              processedMessages.length === 0 && "flex flex-1 flex-col"
+            )}
             ref={contentRef}
           >
             {isThreadLoading ? (
@@ -1420,7 +1466,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
               <>
                 {processedMessages.length === 0 &&
                   (agentDescription ?? assistant?.name) && (
-                    <div className="flex min-h-[70vh] flex-col">
+                    <div className="flex flex-1 flex-col">
                       <div className="flex flex-1 items-center justify-center px-6">
                         <div className="max-w-lg text-center opacity-60">
                           <p className="text-lg font-semibold text-foreground">
@@ -1576,7 +1622,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                       type="button"
                       onClick={clearRunError}
                       aria-label="Dismiss error"
-                      className="shrink-0 rounded-md p-1 text-destructive/70 hover:bg-destructive/10 hover:text-destructive"
+                      className="shrink-0 rounded-md p-1 text-destructive/70 hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -1961,11 +2007,17 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                 />
               ) : null}
               <div
-                className="mx-[18px] mt-1 h-2 cursor-row-resize"
+                className="group flex h-3 cursor-row-resize touch-none items-center justify-center"
                 onPointerDown={handleInputResizeStart}
-              />
+                onDoubleClick={() => {
+                  manualInputHeightRef.current = null;
+                  resizeTextarea();
+                }}
+              >
+                <div className="h-1 w-10 rounded-full bg-border transition-colors group-hover:bg-muted-foreground" />
+              </div>
               <textarea
-                ref={textareaRef}
+                ref={setTextareaRef}
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
@@ -1982,7 +2034,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                     : "Write your message..."
                 }
                 disabled={inputLocked}
-                className="font-inherit resize-none border-0 bg-transparent px-[18px] pb-[13px] pt-[10px] text-sm leading-7 text-primary outline-none placeholder:text-tertiary"
+                className="font-inherit resize-none overflow-hidden border-0 bg-transparent px-[18px] pb-[13px] pt-[10px] text-sm leading-7 text-primary outline-none placeholder:text-tertiary"
                 rows={2}
               />
               <div className="flex justify-between gap-2 p-3">
