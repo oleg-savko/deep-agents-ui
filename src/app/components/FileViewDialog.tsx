@@ -8,7 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import {
+  oneDark,
+  oneLight,
+} from "react-syntax-highlighter/dist/esm/styles/prism";
+import { useAppTheme } from "@/app/hooks/useAppTheme";
+import { THEME } from "@/app/consts/themes";
 import { toast } from "sonner";
 import { MarkdownContent } from "@/app/components/MarkdownContent";
 import type { FileItem } from "@/app/types/types";
@@ -81,6 +86,8 @@ export const FileViewDialog = React.memo<{
   onClose: () => void;
   editDisabled: boolean;
 }>(({ file, onSaveFile, onClose, editDisabled }) => {
+  const theme = useAppTheme();
+  const codeStyle = theme === THEME.LIGHT ? oneLight : oneDark;
   const [isEditingMode, setIsEditingMode] = useState(file === null);
   const [fileName, setFileName] = useState(String(file?.path || ""));
   const [fileContent, setFileContent] = useState(String(file?.content || ""));
@@ -116,7 +123,10 @@ export const FileViewDialog = React.memo<{
   // them per type (PDF/image inline; others download-only) instead of as text.
   const isPdf = useMemo(() => fileExtension === "pdf", [fileExtension]);
   const isImage = useMemo(
-    () => ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"].includes(fileExtension),
+    () =>
+      ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp"].includes(
+        fileExtension
+      ),
     [fileExtension]
   );
   const isSpreadsheet = useMemo(
@@ -130,12 +140,18 @@ export const FileViewDialog = React.memo<{
   const isBinary = isPdf || isImage || binaryMime !== null;
 
   const pdfDataUrl = useMemo(
-    () => (isPdf && fileContent ? `data:application/pdf;base64,${fileContent}` : null),
+    () =>
+      isPdf && fileContent
+        ? `data:application/pdf;base64,${fileContent}`
+        : null,
     [isPdf, fileContent]
   );
   const imageDataUrl = useMemo(() => {
     if (!isImage || !fileContent) return null;
-    const mime = fileExtension === "svg" ? "image/svg+xml" : `image/${fileExtension === "jpg" ? "jpeg" : fileExtension}`;
+    const mime =
+      fileExtension === "svg"
+        ? "image/svg+xml"
+        : `image/${fileExtension === "jpg" ? "jpeg" : fileExtension}`;
     return `data:${mime};base64,${fileContent}`;
   }, [isImage, fileContent, fileExtension]);
 
@@ -187,8 +203,9 @@ export const FileViewDialog = React.memo<{
       const mime = isPdf
         ? "application/pdf"
         : isImage
-          ? (imageDataUrl?.slice(5, imageDataUrl.indexOf(";")) ?? "application/octet-stream")
-          : (binaryMime ?? "application/octet-stream");
+        ? imageDataUrl?.slice(5, imageDataUrl.indexOf(";")) ??
+          "application/octet-stream"
+        : binaryMime ?? "application/octet-stream";
       try {
         const binary = atob(fileContent);
         const bytes = new Uint8Array(binary.length);
@@ -208,7 +225,15 @@ export const FileViewDialog = React.memo<{
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [fileContent, fileName, isBinary, isPdf, isImage, imageDataUrl, binaryMime]);
+  }, [
+    fileContent,
+    fileName,
+    isBinary,
+    isPdf,
+    isImage,
+    imageDataUrl,
+    binaryMime,
+  ]);
 
   const handleEdit = useCallback(() => {
     setIsEditingMode(true);
@@ -344,12 +369,18 @@ export const FileViewDialog = React.memo<{
               </ScrollArea>
             ) : sheetError ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 p-12 text-center">
-                <FileText className="h-10 w-10 text-primary/40" />
+                <FileText className="text-primary/40 h-10 w-10" />
                 <p className="text-sm text-muted-foreground">
                   Could not preview this spreadsheet. Use Download to open it.
                 </p>
-                <Button onClick={handleDownload} size="sm">
-                  <Download size={16} className="mr-1" />
+                <Button
+                  onClick={handleDownload}
+                  size="sm"
+                >
+                  <Download
+                    size={16}
+                    className="mr-1"
+                  />
                   Download
                 </Button>
               </div>
@@ -360,12 +391,19 @@ export const FileViewDialog = React.memo<{
             )
           ) : isBinary ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 p-12 text-center">
-              <FileText className="h-10 w-10 text-primary/40" />
+              <FileText className="text-primary/40 h-10 w-10" />
               <p className="text-sm text-muted-foreground">
-                Preview not available for this file type. Use Download to open it.
+                Preview not available for this file type. Use Download to open
+                it.
               </p>
-              <Button onClick={handleDownload} size="sm">
-                <Download size={16} className="mr-1" />
+              <Button
+                onClick={handleDownload}
+                size="sm"
+              >
+                <Download
+                  size={16}
+                  className="mr-1"
+                />
                 Download
               </Button>
             </div>
@@ -387,7 +425,7 @@ export const FileViewDialog = React.memo<{
                   ) : (
                     <SyntaxHighlighter
                       language={language}
-                      style={oneDark}
+                      style={codeStyle}
                       customStyle={{
                         margin: 0,
                         borderRadius: "0.5rem",

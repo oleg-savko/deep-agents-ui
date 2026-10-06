@@ -5,6 +5,8 @@ import { useQueryState } from "nuqs";
 import { Client } from "@langchain/langgraph-sdk";
 import { useAuthHeader } from "@/providers/AuthHeaderProvider";
 import { getConfig, saveConfig, StandaloneConfig } from "@/lib/config";
+import { filterDeploymentsByHost } from "@/lib/deployments";
+import { deploymentMark } from "@/lib/deploymentMark";
 import { buildSubagentTemplatesByAssistantId } from "@/lib/subagentTemplates";
 import { ConfigDialog } from "@/app/components/ConfigDialog";
 import { Button } from "@/components/ui/button";
@@ -59,7 +61,7 @@ function HomePageContent() {
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [pendingSwitch, setPendingSwitch] = useState<{
     config: StandaloneConfig;
-    kind: "model" | "assistant" | "project";
+    kind: "model" | "assistant" | "project" | "deployment";
     subagentModels?: Record<string, string> | null;
   } | null>(null);
   // Subagent models for the CURRENT thread/session only — never persisted to
@@ -128,6 +130,9 @@ function HomePageContent() {
     Record<string, string[]>
   >({});
   const [configProjects, setConfigProjects] = useState<
+    { value: string; label: string }[]
+  >([]);
+  const [configDeployments, setConfigDeployments] = useState<
     { value: string; label: string }[]
   >([]);
   const [accessInfo, setAccessInfo] = useState<AccessInfo | null>(null);
@@ -215,6 +220,19 @@ function HomePageContent() {
                 value: p.value,
                 label: p.label ?? p.value,
               })
+            )
+          );
+          setConfigDeployments(
+            filterDeploymentsByHost(
+              (data.deployments ?? []).map(
+                (d: { value: string; label?: string }) => ({
+                  value: d.value,
+                  label: d.label ?? d.value,
+                })
+              ),
+              typeof window !== "undefined"
+                ? window.location.hostname
+                : undefined
             )
           );
           setConfigAssistants(
@@ -310,6 +328,10 @@ function HomePageContent() {
     // Confluence space it searches, so replaying a thread under another project
     // leaves tool calls in the history that no longer exist.
     const projectChanged = !!prev && prev.project !== newConfig.project;
+    // A thread id belongs to one LangGraph server. Continuing it on another
+    // deployment 404s, so the switch has to start a fresh conversation.
+    const deploymentChanged =
+      !!prev && prev.deploymentUrl !== newConfig.deploymentUrl;
 
     // Switching model or assistant mid-conversation replays the existing
     // message history under a different provider's validation rules, which can
@@ -318,10 +340,18 @@ function HomePageContent() {
     // starting a fresh one; on cancel the switch is discarded and the controlled
     // dropdowns revert to the current config. With no active thread, apply
     // immediately.
-    if ((modelChanged || assistantChanged || projectChanged) && threadId) {
+    if (
+      (modelChanged ||
+        assistantChanged ||
+        projectChanged ||
+        deploymentChanged) &&
+      threadId
+    ) {
       setPendingSwitch({
         config: newConfig,
-        kind: assistantChanged
+        kind: deploymentChanged
+          ? "deployment"
+          : assistantChanged
           ? "assistant"
           : projectChanged
           ? "project"
@@ -744,6 +774,7 @@ function HomePageContent() {
   // just created already has an owner, so this does not stick.
   const runsBlocked = ownerPending || ownerMismatch;
 
+  const mark = deploymentMark(config.deploymentUrl);
   const defaultModelName = "litellm:openai/gpt-5-mini";
   const assistant: Assistant = {
     assistant_id: config.assistantId,
@@ -786,7 +817,9 @@ function HomePageContent() {
           <DialogHeader>
             <DialogTitle>Start a new conversation?</DialogTitle>
             <DialogDescription>
-              {pendingSwitch?.kind === "assistant"
+              {pendingSwitch?.kind === "deployment"
+                ? "Switching deployment starts a new conversation. This chat lives on the current server and can't continue on another one."
+                : pendingSwitch?.kind === "assistant"
                 ? "Switching assistant starts a new conversation. Your current chat history won't carry over."
                 : pendingSwitch?.kind === "project"
                 ? "Switching project starts a new conversation. Each project has its own data sources and tools, so the current history can't be replayed under another one."
@@ -808,10 +841,85 @@ function HomePageContent() {
         deploymentUrl={config.deploymentUrl}
         apiKey={langsmithApiKey}
       >
-        <div className="flex h-screen flex-col">
+        <div
+          data-env={mark.env}
+          className="deployment-shell flex h-screen flex-col"
+        >
           <header className="flex h-16 items-center justify-between border-b border-border px-6">
-            <div className="flex items-center gap-4">
-              <h1 className="text-xl font-semibold">Deep Agent UI</h1>
+            <div className="flex shrink-0 items-center gap-3">
+              <h1 className="whitespace-nowrap text-xl font-semibold">
+                Deep Agent UI
+              </h1>
+              <Select
+                value={config.deploymentUrl}
+                onValueChange={(url) => {
+                  if (url === config.deploymentUrl) return;
+                  handleSaveConfig({ ...config, deploymentUrl: url });
+                }}
+              >
+                <SelectTrigger
+                  title={config.deploymentUrl}
+                  className="deployment-chip h-7 w-auto shrink-0 cursor-pointer gap-1.5 rounded-md border px-2 py-0 text-[11px] font-medium tracking-wide shadow-none focus-visible:ring-2 focus-visible:ring-ring/50 [&>svg:last-child]:hidden"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                  <SelectValue>{mark.label}</SelectValue>
+                  <span className="inline-flex">
+                    <ChevronDown className="h-3 w-3 opacity-60" />
+                  </span>
+                </SelectTrigger>
+                <SelectContent
+                  align="start"
+                  className="min-w-[13.5rem] [&_[data-radix-select-viewport]]:flex [&_[data-radix-select-viewport]]:flex-col [&_[data-radix-select-viewport]]:gap-1"
+                >
+                  {(configDeployments.some(
+                    (d) => d.value === config.deploymentUrl
+                  )
+                    ? configDeployments
+                    : [
+                        ...configDeployments,
+                        {
+                          value: config.deploymentUrl,
+                          label: mark.label,
+                        },
+                      ]
+                  ).map((d) => {
+                    const item = deploymentMark(d.value);
+                    const envWord =
+                      item.env === "test"
+                        ? "TEST"
+                        : item.env === "prod"
+                        ? "PROD"
+                        : "LOCAL";
+                    return (
+                      <SelectPrimitive.Item
+                        key={d.value}
+                        value={d.value}
+                        data-env={item.env}
+                        className="deployment-option relative flex w-full cursor-default select-none items-center gap-2.5 rounded-md px-2.5 py-2 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                      >
+                        <span className="size-1.5 shrink-0 rounded-full bg-current" />
+                        <SelectPrimitive.ItemText>
+                          <span className="flex w-full items-center justify-between gap-6">
+                            <span className="font-medium tracking-wide">
+                              {item.brand}
+                            </span>
+                            {item.env !== "local" && (
+                              <span className="text-[10px] font-semibold tracking-[0.16em]">
+                                {envWord}
+                              </span>
+                            )}
+                          </span>
+                        </SelectPrimitive.ItemText>
+                        <span className="flex size-3.5 shrink-0 items-center justify-center">
+                          <SelectPrimitive.ItemIndicator>
+                            <Check className="size-3.5" />
+                          </SelectPrimitive.ItemIndicator>
+                        </span>
+                      </SelectPrimitive.Item>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
               {!sidebar && (
                 <Button
                   variant="outline"
@@ -843,7 +951,7 @@ function HomePageContent() {
                     handleSaveConfig(updated);
                   }}
                 >
-                  <SelectTrigger className="h-7 gap-1 border-none bg-transparent px-1.5 text-sm shadow-none focus:ring-0 [&>svg]:hidden">
+                  <SelectTrigger className="h-7 gap-1 border-none bg-transparent px-1.5 text-sm shadow-none focus:ring-0 [&>svg:last-child]:hidden">
                     <SelectValue>
                       {assistantLabels[config.assistantId] ??
                         config.assistantId}
@@ -902,7 +1010,7 @@ function HomePageContent() {
                       handleSaveConfig({ ...config, project: newProject });
                     }}
                   >
-                    <SelectTrigger className="h-7 gap-1 border-none bg-transparent px-1.5 text-sm shadow-none focus:ring-0 [&>svg]:hidden">
+                    <SelectTrigger className="h-7 gap-1 border-none bg-transparent px-1.5 text-sm shadow-none focus:ring-0 [&>svg:last-child]:hidden">
                       <SelectValue placeholder="Select">
                         <span className="block max-w-[140px] truncate">
                           {configProjects.find(
@@ -946,7 +1054,7 @@ function HomePageContent() {
                       handleSaveConfig(updated);
                     }}
                   >
-                    <SelectTrigger className="h-7 gap-1 border-none bg-transparent px-1.5 text-sm shadow-none focus:ring-0 [&>svg]:hidden">
+                    <SelectTrigger className="h-7 gap-1 border-none bg-transparent px-1.5 text-sm shadow-none focus:ring-0 [&>svg:last-child]:hidden">
                       <SelectValue>
                         <span className="block max-w-[180px] truncate">
                           {availableModels.find(
@@ -1032,7 +1140,7 @@ function HomePageContent() {
                   modelRestoredForThreadRef.current = null;
                 }}
                 disabled={!threadId}
-                className="!border-[var(--color-new-thread-btn)] !bg-[var(--color-new-thread-btn)] !text-white hover:!bg-[var(--color-new-thread-btn-hover)]"
+                className="focus-visible:!ring-[var(--color-new-thread-btn)]/40 !border-[var(--color-new-thread-btn)] !bg-[var(--color-new-thread-btn)] !text-white hover:!bg-[var(--color-new-thread-btn-hover)]"
               >
                 <SquarePen className="mr-2 h-4 w-4" />
                 New Thread

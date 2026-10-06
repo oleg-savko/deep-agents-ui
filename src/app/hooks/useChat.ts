@@ -6,6 +6,8 @@ import {
   type Message,
   type Assistant,
   type Checkpoint,
+  type Client,
+  type Run,
 } from "@langchain/langgraph-sdk";
 import { v4 as uuidv4 } from "uuid";
 import type { UseStreamThread } from "@langchain/langgraph-sdk/react";
@@ -16,8 +18,11 @@ import { HumanResponse } from "@/app/types/inbox";
 import { isImageFile } from "@/app/utils/utils";
 import { useQueryState } from "nuqs";
 import {
+  attachRunId,
   clearRunStart,
+  parseRunCreatedAt,
   readRunStart,
+  readStreamRunId,
   writeRunStart,
 } from "@/app/utils/runClock";
 
@@ -96,6 +101,68 @@ function pickFiles(
   return Object.keys(p).length > Object.keys(s).length ? p : s;
 }
 
+function isLiveRun(status: Run["status"]): boolean {
+  return status === "pending" || status === "running";
+}
+
+function anchorFor(run: Run, storedAt: number | null): number {
+  return storedAt ?? parseRunCreatedAt(run.created_at) ?? Date.now();
+}
+
+/**
+ * Clock for a run the UI did not just start. Only `pending` / `running`
+ * count. A terminal run joined via a leftover `lg:stream` key gets no elapsed
+ * time, and its stored anchor is dropped.
+ */
+async function resolveLiveAnchor(
+  client: Client,
+  threadId: string
+): Promise<{ at: number; runId: string } | null> {
+  const stored = readRunStart(threadId);
+  const streamRunId = readStreamRunId(threadId);
+
+  if (streamRunId) {
+    try {
+      const run = await client.runs.get(threadId, streamRunId);
+      if (!isLiveRun(run.status)) {
+        clearRunStart(threadId);
+        return null;
+      }
+      return {
+        at: anchorFor(run, stored?.runId === run.run_id ? stored.at : null),
+        runId: run.run_id,
+      };
+    } catch {
+      // Can't confirm the joined run. Don't invent a clock or steal another.
+      return null;
+    }
+  }
+
+  try {
+    const runs = await client.runs.list(threadId, { limit: 10 });
+    let newest: Run | null = null;
+    let newestAt = -Infinity;
+    for (const run of runs) {
+      if (!isLiveRun(run.status)) continue;
+      const at = parseRunCreatedAt(run.created_at) ?? 0;
+      if (at >= newestAt) {
+        newest = run;
+        newestAt = at;
+      }
+    }
+    if (!newest) {
+      clearRunStart(threadId);
+      return null;
+    }
+    return {
+      at: anchorFor(newest, stored?.runId === newest.run_id ? stored.at : null),
+      runId: newest.run_id,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function useChat({
   activeAssistant,
   onHistoryRevalidate,
@@ -143,6 +210,23 @@ export function useChat({
     threadId: string | null;
   } | null>(null);
   const startGenRef = useRef(0);
+  const runStartedAtRef = useRef<number | null>(null);
+  const runIdRef = useRef<string | null>(null);
+  /** Thread that owns the stored anchor. Not the thread id from a later navigation. */
+  const clockThreadIdRef = useRef<string | null>(null);
+  const [runStartedAt, setRunStartedAt] = useState<number | null>(null);
+  const [runId, setRunId] = useState<string | null>(null);
+
+  const setRunStart = useCallback(
+    (at: number | null, nextRunId: string | null = null) => {
+      runStartedAtRef.current = at;
+      const id = at == null ? null : nextRunId;
+      runIdRef.current = id;
+      setRunStartedAt(at);
+      setRunId(id);
+    },
+    []
+  );
 
   const stream = useStream<StateType>({
     assistantId: activeAssistant?.assistant_id || "",
@@ -167,8 +251,13 @@ export function useChat({
       // the same thread must not reassign its owner.
       if (pending && pending.threadId == null) {
         pending.threadId = run.thread_id;
-        writeRunStart(run.thread_id, pending.at);
+        writeRunStart(run.thread_id, pending.at, null);
         onThreadCreatedRef.current?.(run.thread_id);
+      }
+      attachRunId(run.thread_id, run.run_id);
+      clockThreadIdRef.current = run.thread_id;
+      if (runStartedAtRef.current != null) {
+        setRunStart(runStartedAtRef.current, run.run_id);
       }
       onHistoryRevalidateRef.current?.();
     },
@@ -188,25 +277,23 @@ export function useChat({
     },
   });
 
-  const runStartedAtRef = useRef<number | null>(null);
-  const [runStartedAt, setRunStartedAt] = useState<number | null>(null);
   const prevIsLoadingRef = useRef(false);
   const [responseDurationByAiMessageId, setResponseDurationByAiMessageId] =
     useState<Record<string, number>>({});
   const [isSubmittingAttachments, setIsSubmittingAttachments] = useState(false);
-
-  const setRunStart = useCallback((at: number | null) => {
-    runStartedAtRef.current = at;
-    setRunStartedAt(at);
-  }, []);
 
   const markRunStarted = useCallback(() => {
     stoppedAtRef.current = 0;
     setStreamFailure(null);
     const at = Date.now();
     pendingStartRef.current = { at, threadId: threadId ?? null };
-    setRunStart(at);
-    if (threadId) writeRunStart(threadId, at);
+    setRunStart(at, null);
+    if (threadId) {
+      clockThreadIdRef.current = threadId;
+      writeRunStart(threadId, at, null);
+    } else {
+      clockThreadIdRef.current = null;
+    }
   }, [setRunStart, threadId]);
 
   const reportFailure = useCallback((err: unknown, live = false) => {
@@ -246,17 +333,23 @@ export function useChat({
     // this branch, not onCreated, is normally the first to see it.
     if (pending && pending.threadId == null && threadId) {
       pending.threadId = threadId;
-      writeRunStart(threadId, pending.at);
-      setRunStart(pending.at);
+      writeRunStart(threadId, pending.at, null);
+      clockThreadIdRef.current = threadId;
+      setRunStart(pending.at, null);
       onThreadCreatedRef.current?.(threadId);
       return;
     }
     if (pending && threadId && pending.threadId === threadId) {
-      setRunStart(pending.at);
+      clockThreadIdRef.current = threadId;
+      setRunStart(pending.at, runIdRef.current);
       return;
     }
+    // Don't read a stored anchor here. A leftover timestamp must not block
+    // the server check, and the previous thread's key stays until that check
+    // decides the run is still live.
     pendingStartRef.current = null;
-    setRunStart(threadId ? readRunStart(threadId) : null);
+    clockThreadIdRef.current = null;
+    setRunStart(null);
   }, [threadId, setRunStart]);
 
   useEffect(() => {
@@ -266,54 +359,61 @@ export function useChat({
 
     if (wasLoading && !nowLoading && runStartedAtRef.current != null) {
       const started = runStartedAtRef.current;
+      const owner = clockThreadIdRef.current;
       pendingStartRef.current = null;
       setRunStart(null);
-      if (threadId) clearRunStart(threadId);
-      const msgs = stream.messages ?? [];
-      let lastAiId: string | undefined;
-      for (let i = msgs.length - 1; i >= 0; i -= 1) {
-        const m = msgs[i];
-        if (m.type === "ai" && m.id) {
-          lastAiId = m.id;
-          break;
+      if (owner) clearRunStart(owner);
+      clockThreadIdRef.current = null;
+      // Switching threads resets `prevIsLoadingRef`, so this edge is the run
+      // that actually finished on the thread still on screen.
+      if (owner && threadId && owner === threadId) {
+        const msgs = stream.messages ?? [];
+        let lastAiId: string | undefined;
+        for (let i = msgs.length - 1; i >= 0; i -= 1) {
+          const m = msgs[i];
+          if (m.type === "ai" && m.id) {
+            lastAiId = m.id;
+            break;
+          }
         }
-      }
-      if (lastAiId) {
-        const durationMs = Math.max(0, Date.now() - started);
-        setResponseDurationByAiMessageId((prev) => ({
-          ...prev,
-          [lastAiId!]: durationMs,
-        }));
+        if (lastAiId) {
+          const durationMs = Math.max(0, Date.now() - started);
+          setResponseDurationByAiMessageId((prev) => ({
+            ...prev,
+            [lastAiId!]: durationMs,
+          }));
+        }
       }
     }
 
     if (!wasLoading && nowLoading && runStartedAtRef.current == null) {
-      const stored = threadId ? readRunStart(threadId) : null;
-      if (stored != null) {
-        pendingStartRef.current = { at: stored, threadId };
-        setRunStart(stored);
+      const pending = pendingStartRef.current;
+      if (
+        pending &&
+        (pending.threadId == null || pending.threadId === threadId)
+      ) {
+        if (threadId) {
+          clockThreadIdRef.current = threadId;
+          writeRunStart(threadId, pending.at, runIdRef.current);
+        }
+        setRunStart(pending.at, runIdRef.current);
         return;
       }
+
       const gen = ++startGenRef.current;
       const tid = threadId;
+      if (!tid) return;
       void (async () => {
-        let at = Date.now();
-        if (tid) {
-          try {
-            const [run] = await client.runs.list(tid, {
-              status: "running",
-              limit: 1,
-            });
-            const parsed = run ? Date.parse(run.created_at) : NaN;
-            if (Number.isFinite(parsed)) at = Math.min(parsed, Date.now());
-          } catch {
-            // Keep the local timestamp; the timer still moves.
-          }
-        }
+        const resolved = await resolveLiveAnchor(client, tid);
         if (gen !== startGenRef.current) return;
-        pendingStartRef.current = { at, threadId: tid };
-        setRunStart(at);
-        if (tid) writeRunStart(tid, at);
+        if (!resolved) {
+          setRunStart(null);
+          return;
+        }
+        clockThreadIdRef.current = tid;
+        pendingStartRef.current = { at: resolved.at, threadId: tid };
+        writeRunStart(tid, resolved.at, resolved.runId);
+        setRunStart(resolved.at, resolved.runId);
       })();
     }
   }, [stream.isLoading, stream.messages, threadId, client, setRunStart]);
@@ -616,6 +716,7 @@ export function useChat({
   );
 
   const markCurrentThreadAsResolved = useCallback(() => {
+    markRunStarted();
     stream.submit(null, {
       command: { goto: "__end__", update: null },
       streamMode: [...STREAM_MODE],
@@ -623,11 +724,12 @@ export function useChat({
     });
     // Update thread list when marking thread as resolved
     onHistoryRevalidate?.();
-  }, [stream, onHistoryRevalidate]);
+  }, [stream, onHistoryRevalidate, markRunStarted]);
 
   const stopStream = useCallback(() => {
     stoppedAtRef.current = Date.now();
     pendingStartRef.current = null;
+    clockThreadIdRef.current = null;
     setRunStart(null);
     if (threadId) clearRunStart(threadId);
     stream.stop();
@@ -654,6 +756,7 @@ export function useChat({
     sendHumanResponse,
     markCurrentThreadAsResolved,
     runStartedAt,
+    runId,
     streamFailure,
     reportFailure,
     clearFailure,
