@@ -442,7 +442,14 @@ button {
   color: var(--color-text-secondary);
 }
 
-/* Menu is portaled, so the env lives on the row itself. */
+/* Menu is portaled, so the env lives on the row itself.
+   ItemText drops className; this is the span Radix labels the option with. */
+.deployment-option > span[id] {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 9.5rem;
+}
+
 .deployment-option[data-env="test"] {
   color: var(--color-warning);
   background-color: color-mix(in srgb, var(--color-warning) 16%, transparent);

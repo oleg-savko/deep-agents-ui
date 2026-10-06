@@ -859,7 +859,7 @@ function HomePageContent() {
               >
                 <SelectTrigger
                   title={config.deploymentUrl}
-                  className="deployment-chip h-7 w-auto shrink-0 cursor-pointer gap-1.5 rounded-md border px-2 py-0 text-[11px] font-medium tracking-wide shadow-none focus-visible:ring-2 focus-visible:ring-ring/50 [&>svg]:hidden"
+                  className="deployment-chip h-7 w-auto shrink-0 cursor-pointer gap-1.5 rounded-md border px-2 py-0 text-[11px] font-medium tracking-wide shadow-none focus-visible:ring-2 focus-visible:ring-ring/50 [&>svg:last-child]:hidden"
                 >
                   <span className="h-1.5 w-1.5 rounded-full bg-current" />
                   <SelectValue>{mark.label}</SelectValue>
@@ -867,7 +867,10 @@ function HomePageContent() {
                     <ChevronDown className="h-3 w-3 opacity-60" />
                   </span>
                 </SelectTrigger>
-                <SelectContent align="start">
+                <SelectContent
+                  align="start"
+                  className="min-w-[13.5rem] [&_[data-radix-select-viewport]]:flex [&_[data-radix-select-viewport]]:flex-col [&_[data-radix-select-viewport]]:gap-1"
+                >
                   {(configDeployments.some(
                     (d) => d.value === config.deploymentUrl
                   )
@@ -881,21 +884,37 @@ function HomePageContent() {
                       ]
                   ).map((d) => {
                     const item = deploymentMark(d.value);
+                    const envWord =
+                      item.env === "test"
+                        ? "TEST"
+                        : item.env === "prod"
+                        ? "PROD"
+                        : "LOCAL";
                     return (
                       <SelectPrimitive.Item
                         key={d.value}
                         value={d.value}
                         data-env={item.env}
-                        className="deployment-option relative flex w-full cursor-default select-none items-center gap-2 rounded-sm py-1.5 pl-2 pr-2 text-sm font-medium outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+                        className="deployment-option relative flex w-full cursor-default select-none items-center gap-2.5 rounded-md px-2.5 py-2 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
                       >
-                        <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                        <span className="size-1.5 shrink-0 rounded-full bg-current" />
+                        <SelectPrimitive.ItemText>
+                          <span className="flex w-full items-center justify-between gap-6">
+                            <span className="font-medium tracking-wide">
+                              {item.brand}
+                            </span>
+                            {item.env !== "local" && (
+                              <span className="text-[10px] font-semibold tracking-[0.16em]">
+                                {envWord}
+                              </span>
+                            )}
+                          </span>
+                        </SelectPrimitive.ItemText>
+                        <span className="flex size-3.5 shrink-0 items-center justify-center">
                           <SelectPrimitive.ItemIndicator>
-                            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                            <Check className="size-3.5" />
                           </SelectPrimitive.ItemIndicator>
                         </span>
-                        <SelectPrimitive.ItemText>
-                          {item.label}
-                        </SelectPrimitive.ItemText>
                       </SelectPrimitive.Item>
                     );
                   })}
@@ -932,7 +951,7 @@ function HomePageContent() {
                     handleSaveConfig(updated);
                   }}
                 >
-                  <SelectTrigger className="h-7 gap-1 border-none bg-transparent px-1.5 text-sm shadow-none focus:ring-0 [&>svg]:hidden">
+                  <SelectTrigger className="h-7 gap-1 border-none bg-transparent px-1.5 text-sm shadow-none focus:ring-0 [&>svg:last-child]:hidden">
                     <SelectValue>
                       {assistantLabels[config.assistantId] ??
                         config.assistantId}
@@ -991,7 +1010,7 @@ function HomePageContent() {
                       handleSaveConfig({ ...config, project: newProject });
                     }}
                   >
-                    <SelectTrigger className="h-7 gap-1 border-none bg-transparent px-1.5 text-sm shadow-none focus:ring-0 [&>svg]:hidden">
+                    <SelectTrigger className="h-7 gap-1 border-none bg-transparent px-1.5 text-sm shadow-none focus:ring-0 [&>svg:last-child]:hidden">
                       <SelectValue placeholder="Select">
                         <span className="block max-w-[140px] truncate">
                           {configProjects.find(
@@ -1035,7 +1054,7 @@ function HomePageContent() {
                       handleSaveConfig(updated);
                     }}
                   >
-                    <SelectTrigger className="h-7 gap-1 border-none bg-transparent px-1.5 text-sm shadow-none focus:ring-0 [&>svg]:hidden">
+                    <SelectTrigger className="h-7 gap-1 border-none bg-transparent px-1.5 text-sm shadow-none focus:ring-0 [&>svg:last-child]:hidden">
                       <SelectValue>
                         <span className="block max-w-[180px] truncate">
                           {availableModels.find(
