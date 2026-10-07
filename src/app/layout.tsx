@@ -1,6 +1,6 @@
 import { Inter } from "next/font/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
-import { Toaster } from "sonner";
+import { AppToaster } from "@/components/ui/sonner";
 import { AuthHeaderProvider } from "@/providers/AuthHeaderProvider";
 import "./globals.css";
 
@@ -45,12 +45,7 @@ export default function RootLayout({
         <NuqsAdapter>
           <AuthHeaderProvider>{children}</AuthHeaderProvider>
         </NuqsAdapter>
-        <Toaster
-          position="top-center"
-          richColors
-          closeButton
-          theme="system"
-        />
+        <AppToaster />
       </body>
     </html>
   );

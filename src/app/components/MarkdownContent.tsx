@@ -4,8 +4,13 @@ import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import {
+  oneDark,
+  oneLight,
+} from "react-syntax-highlighter/dist/esm/styles/prism";
 import { cn } from "@/lib/utils";
+import { useAppTheme } from "@/app/hooks/useAppTheme";
+import { THEME } from "@/app/consts/themes";
 
 interface MarkdownContentProps {
   content: string;
@@ -14,6 +19,9 @@ interface MarkdownContentProps {
 
 export const MarkdownContent = React.memo<MarkdownContentProps>(
   ({ content, className = "" }) => {
+    const theme = useAppTheme();
+    const codeStyle = theme === THEME.LIGHT ? oneLight : oneDark;
+
     return (
       <div
         className={cn(
@@ -37,7 +45,7 @@ export const MarkdownContent = React.memo<MarkdownContentProps>(
               const match = /language-(\w+)/.exec(className || "");
               return !inline && match ? (
                 <SyntaxHighlighter
-                  style={oneDark}
+                  style={codeStyle}
                   language={match[1]}
                   PreTag="div"
                   className="max-w-full rounded-md text-sm"

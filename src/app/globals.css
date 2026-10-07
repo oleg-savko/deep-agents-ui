@@ -114,9 +114,9 @@
     --popover-foreground: 0 0% 0%;
     --primary: 180 35% 17%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 100%;
+    --secondary: 210 40% 96%;
     --secondary-foreground: 0 0% 0%;
-    --muted: 0 0% 100%;
+    --muted: 210 40% 96%;
     --muted-foreground: 215 16% 47%;
     --accent: 210 40% 92%;
     --accent-foreground: 0 0% 0%;
@@ -349,6 +349,142 @@ button {
   }
 }
 
+/*
+  Selected deployment. Wash uses the existing warning/success tokens so test
+  reads warm and prod stays quiet. The chat canvas is transparent, so the
+  gradient shows through the thread without painting over cards or the composer.
+*/
+.deployment-shell {
+  background-color: var(--color-background);
+  background-image: linear-gradient(
+    180deg,
+    var(--deployment-wash, transparent),
+    transparent 240px
+  );
+  box-shadow: inset 0 2px 0 var(--deployment-accent, transparent);
+}
+
+.deployment-shell[data-env="test"] {
+  --deployment-wash: color-mix(in srgb, var(--color-warning) 22%, transparent);
+  --deployment-accent: color-mix(
+    in srgb,
+    var(--color-warning) 80%,
+    transparent
+  );
+}
+
+.deployment-shell[data-env="prod"] {
+  --deployment-wash: color-mix(in srgb, var(--color-success) 12%, transparent);
+  --deployment-accent: color-mix(
+    in srgb,
+    var(--color-success) 55%,
+    transparent
+  );
+}
+
+.deployment-shell[data-env="local"] {
+  --deployment-wash: color-mix(
+    in srgb,
+    var(--color-blueberry-blue, #005eb8) 16%,
+    transparent
+  );
+  --deployment-accent: color-mix(
+    in srgb,
+    var(--color-blueberry-blue, #005eb8) 50%,
+    transparent
+  );
+}
+
+.deployment-chip {
+  border-color: var(--deployment-accent, var(--color-border));
+  background: var(--deployment-wash, transparent);
+  color: var(--color-text-secondary);
+}
+
+.deployment-chip:hover {
+  background: color-mix(
+    in srgb,
+    var(--deployment-accent, var(--color-border)) 22%,
+    var(--color-surface)
+  );
+}
+
+/*
+  Light header sits on the deployment wash, so outline buttons painted with
+  the page background disappear into it. Lift them onto the surface color.
+*/
+:root[data-theme="light"]
+  .deployment-shell
+  > header
+  [data-slot="button"]:not([class*="new-thread-btn"]) {
+  background-color: var(--color-surface);
+  border-color: hsl(var(--border));
+  box-shadow: 0 1px 2px rgba(28, 60, 60, 0.06);
+}
+
+:root[data-theme="light"]
+  .deployment-shell
+  > header
+  [data-slot="button"]:not([class*="new-thread-btn"]):hover {
+  background-color: hsl(var(--accent));
+  border-color: hsl(var(--ring) / 0.35);
+}
+
+.deployment-shell[data-env="test"] .deployment-chip {
+  color: var(--color-warning);
+}
+
+.deployment-shell[data-env="prod"] .deployment-chip {
+  color: var(--color-success);
+}
+
+.deployment-shell[data-env="local"] .deployment-chip {
+  color: var(--color-text-secondary);
+}
+
+/* Menu is portaled, so the env lives on the row itself.
+   ItemText drops className; this is the span Radix labels the option with. */
+.deployment-option > span[id] {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 9.5rem;
+}
+
+.deployment-option[data-env="test"] {
+  color: var(--color-warning);
+  background-color: color-mix(in srgb, var(--color-warning) 16%, transparent);
+}
+
+.deployment-option[data-env="prod"] {
+  color: var(--color-success);
+  background-color: color-mix(in srgb, var(--color-success) 14%, transparent);
+}
+
+.deployment-option[data-env="local"] {
+  color: var(--color-blueberry-blue, #005eb8);
+  background-color: color-mix(
+    in srgb,
+    var(--color-blueberry-blue, #005eb8) 12%,
+    transparent
+  );
+}
+
+.deployment-option[data-env="test"][data-highlighted] {
+  background-color: color-mix(in srgb, var(--color-warning) 32%, transparent);
+}
+
+.deployment-option[data-env="prod"][data-highlighted] {
+  background-color: color-mix(in srgb, var(--color-success) 28%, transparent);
+}
+
+.deployment-option[data-env="local"][data-highlighted] {
+  background-color: color-mix(
+    in srgb,
+    var(--color-blueberry-blue, #005eb8) 24%,
+    transparent
+  );
+}
+
 /* Custom scrollbar styles */
 .scrollbar-pretty {
   overflow-y: scroll;
@@ -388,4 +524,14 @@ button {
   font-weight: 600;
   text-decoration: line-through;
   text-decoration-color: #f85149;
+}
+
+:root[data-theme="light"] .word-added {
+  background-color: rgba(46, 160, 67, 0.2);
+  color: #14532d;
+}
+
+:root[data-theme="light"] .word-removed {
+  background-color: rgba(248, 81, 73, 0.2);
+  color: #7f1d1d;
 }

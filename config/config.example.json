@@ -320,6 +320,30 @@
           "label": "deepseek-flash"
         }
       ]
+    },
+    {
+      "value": "incident_analysis",
+      "label": "Incident Analysis Agent",
+      "description": "Log incident RCA for admins: finds the failure in Elasticsearch (components, traefik, nginx, gf5), follows it across services, correlates Zabbix triggers and metrics (and Grafana for MMRU), checks the change path in Jira/GitLab, and returns a timeline with root cause, blast radius and actions. Read-only; the selected project decides which ELK/Zabbix instance is used.",
+      "exampleQuestions": [
+        "500 на /gateway/REGISTRATION с 07:00 до 07:30 UTC — найди первопричину",
+        "creditId=35161966: почему не скачивается документ? проверь логи и инфраструктуру",
+        "Всплеск ошибок run-private-area за последний час — какой компонент источник и что менялось?"
+      ],
+      "aiGroups": [
+        "/ai-group/admin"
+      ],
+      "defaultModel": "litellm:deepseek/deepseek-flash",
+      "models": [
+        {
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-flash",
+          "label": "deepseek-flash"
+        }
+      ]
     }
   ],
   "projects": [

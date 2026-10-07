@@ -27,7 +27,7 @@ const client = vi.hoisted(() => ({
     updateState: vi.fn(),
     getState: vi.fn(),
   },
-  runs: { list: vi.fn() },
+  runs: { list: vi.fn(), get: vi.fn() },
 }));
 
 vi.mock("@langchain/langgraph-sdk/react", () => ({
@@ -81,6 +81,8 @@ beforeEach(() => {
   client.threads.updateState.mockReset();
   client.runs.list.mockReset();
   client.runs.list.mockResolvedValue([]);
+  client.runs.get.mockReset();
+  client.runs.get.mockRejectedValue(new Error("not found"));
 });
 
 describe("useChat", () => {
@@ -164,7 +166,16 @@ describe("useChat", () => {
   it("stamps the response duration onto the last AI message when loading ends", async () => {
     const { result, rerender } = renderHook(
       () => useChat({ activeAssistant: assistant }),
-      { wrapper }
+      {
+        wrapper: ({ children }) => (
+          <NuqsTestingAdapter
+            hasMemory
+            searchParams="?threadId=thread-1"
+          >
+            {children}
+          </NuqsTestingAdapter>
+        ),
+      }
     );
     await act(async () => {
       await result.current.sendMessage("hi");
