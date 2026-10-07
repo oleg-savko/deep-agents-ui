@@ -7,24 +7,6 @@
   ],
   "assistants": [
     {
-      "value": "ba_research",
-      "label": "BA Research Agent (deprecated)",
-      "description": "Researches and analyzes Jira stories to create comprehensive BA specifications and requirement documents. Reviews pre-development requirements for completeness, consistency, and scope correctness.",
-      "exampleQuestions": [
-        "Analyze requirements for MMRU-1234 and create a BA specification",
-        "Review the pre-development requirements for story MMRU-5678 for completeness",
-        "Create a BA spec document for the user story about payment processing"
-      ],
-      "defaultModel": "litellm:openai/gpt-6-luna",
-      "aiGroups": ["/MMRU/ai-group/admin"],
-      "models": [
-        {
-          "value": "litellm:openai/gpt-6-luna",
-          "label": "litellm:openai/gpt-6-luna"
-        }
-      ]
-    },
-    {
       "value": "chat",
       "label": "Chat Agent",
       "description": "Fast data analyst for ad-hoc business questions backed by ClickHouse analytics. Supports charts, data visualization, and quick data insights.",
@@ -288,10 +270,6 @@
         {
           "value": "litellm:deepseek/deepseek-flash",
           "label": "deepseek-flash"
-        },
-        {
-          "value": "litellm:deepseek/deepseek-v4-pro",
-          "label": "deepseek-v4-pro"
         },
         {
           "value": "litellm:openai/gemma-4-26B-A4B",

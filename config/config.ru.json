@@ -106,37 +106,6 @@
       ]
     },
     {
-      "value": "ba_research",
-      "label": "BA Research Agent (deprecated)",
-      "description": "Researches and analyzes Jira stories to create comprehensive BA specifications and requirement documents. Reviews pre-development requirements for completeness, consistency, and scope correctness.",
-      "defaultModel": "litellm:openai/Qwen3.8-27B",
-      "aiGroups": ["/ai-group/admin"],
-      "models": [
-        {
-          "value": "litellm:openai/Qwen3.8-27B",
-          "label": "Qwen3.8-27B"
-        }
-      ]
-    },
-    {
-      "value": "ba_task_chat",
-      "label": "BA Task Chat Agent (deprecated)",
-      "description": "BA task chat agent for creating and updating Jira tasks and Confluence pages.",
-      "exampleQuestions": [],
-      "aiGroups": ["/ai-group/admin"],
-      "defaultModel": "litellm:openai/Qwen3.8-27B",
-      "models": [
-        {
-          "value": "litellm:openai/Qwen3.8-27B",
-          "label": "Qwen3.8-27B"
-        },
-        {
-          "value": "litellm:openai/gemma-4-26B-A4B",
-          "label": "gemma-4-26B-A4B"
-        }
-      ]
-    },
-    {
       "value": "codebase_qna",
       "label": "Codebase Q&A Agent (for business users)",
       "description": "Business-facing Q&A assistant for your GitLab codebase. Helps non-developers understand what features, integrations, and functionality exist in the code.",
@@ -211,6 +180,7 @@
       "label": "QA Research Agent",
       "description": "Generates complete QA packages from Jira tickets: requirements analysis, gap detection, functional checklists, manual test cases, and effort estimation.",
       "exampleQuestions": [
+        "Для Jira <KEY>=MMRU-XXXX (Story, её Task или подзадача): сформируй QA-пакет по корпусу требований стори — delivery contract из ba-workspace; если корпуса ещё нет, собери требования по Jira и Confluence. Покрытие, пробелы, чек-лист, тест-кейсы и оценку трудозатрат — на русском языке, с трассировкой к REQ-/AC-id корпуса. Итоговую QA документацию сохрани в файл <Date>_<KEY>_QA_checklist.md. После этого прикрепить проверенный файл к соответствующей задаче Jira.",
         "Для Jira <KEY>=MMRU-XXXX: собрать требования через spec-researcher (Jira links + Confluence + attachments).  Далее запустить qa-requirements-researcher. ВАЖНО: текст description для qa-requirements-researcher должен состоять РОВНО из двух частей:  byte-for-byte output spec-researcher (без каких-либо добавлений/удалений/правок), затем на новой строке ровно фраза: Сформируй итоговую QA документацию на русском языке. Запрещено добавлять любые другие слова/заголовки/ограничения/пояснения/разделители (включая “ONLY”, “START/END”, “markdown”, “не запрашивай контекст” и т.п.).  Результат qa-requirements-researcher сохранить byte-for-byte в файл: <Date>_<KEY>_QA_checklist.md."
       ],
       "defaultModel": "litellm:deepseek/deepseek-flash",
@@ -241,6 +211,46 @@
         "spec-researcher": "litellm:deepseek/deepseek-flash",
         "qa-requirements-researcher": "litellm:deepseek/deepseek-flash"
       }
+    },
+    {
+      "value": "aqa_agent",
+      "label": "AQA Agent",
+      "recursionLimit": 5000,
+      "description": "Writes autotests in mm-test for a Task from its QA checklist: runs mm-test's own QA handoff in the sandbox against the Task's MR environment and opens a draft MR.",
+      "exampleQuestions": [
+        "AQA handoff по Jira <KEY>=MMRU-XXXX: QA-чеклист приложен к задаче (*_QA_checklist.md). MR реализации: <ссылки на MR>. Напиши автотесты в mm-test по чеклисту, прогони их на MR-окружении и открой draft MR."
+      ],
+      "defaultModel": "litellm:deepseek/deepseek-flash",
+      "aiGroups": [
+        "/ai-group/admin",
+        "/ai-group/it"
+      ],
+      "models": [
+        {
+          "value": "litellm:openai/gpt-6-sol",
+          "label": "gpt-6-sol"
+        },
+        {
+          "value": "litellm:openai/gpt-5.6-terra",
+          "label": "gpt-5.6-terra"
+        },
+        {
+          "value": "litellm:openai/gpt-6-luna",
+          "label": "gpt-6-luna"
+        },
+        {
+          "value": "litellm:openai/Qwen3.8-27B",
+          "label": "Qwen3.8-27B"
+        },
+        {
+          "value": "litellm:deepseek/deepseek-flash",
+          "label": "deepseek-flash"
+        },
+        {
+          "value": "litellm:openai/gemma-4-26B-A4B",
+          "label": "gemma-4-26B-A4B"
+        }
+      ]
     },
     {
       "value": "de_chat",
